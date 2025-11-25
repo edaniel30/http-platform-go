@@ -127,6 +127,35 @@ config.WithoutRecovery()  // Disable Recovery middleware
 config.WithoutLogger()    // Disable Logger middleware
 ```
 
+#### Base Path
+
+Set a base path for all routes registered with the platform:
+
+```go
+config.WithBasePath("/api/v1")  // All routes will be prefixed with /api/v1
+
+// Example:
+platform.GET("/health", handler)  // Actual route: /api/v1/health
+platform.GET("/users", handler)   // Actual route: /api/v1/users
+```
+
+**Note:** When using `WithBasePath`, all routes registered directly on the platform will be automatically prefixed. You can still create nested groups:
+
+```go
+platform, _ := httpplatform.New(
+    config.DefaultConfig(),
+    config.WithBasePath("/api/v1"),  // Base path
+)
+
+// Route: /api/v1/health
+platform.GET("/health", healthHandler)
+
+// Nested group: /api/v1/users/*
+users := platform.Group("/users")
+users.GET("", listUsers)       // Route: /api/v1/users
+users.GET("/:id", getUser)     // Route: /api/v1/users/:id
+```
+
 ### Full Configuration Example
 
 ```go
@@ -139,8 +168,11 @@ platform, err := httpplatform.New(
     config.WithWriteTimeout(60 * time.Second),
     config.WithCORS([]string{"https://example.com"}),
     config.WithAllowedMethods([]string{"GET", "POST", "PUT", "DELETE"}),
-    config.WithBasePath("/api/v1"),
+    config.WithBasePath("/api/v1"),  // All routes will be prefixed with /api/v1
 )
+
+// Example route registration
+platform.GET("/health", healthHandler)  // Accessible at: /api/v1/health
 ```
 
 ## Middleware

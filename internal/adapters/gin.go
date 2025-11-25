@@ -10,7 +10,8 @@ import (
 
 // GinRouter wraps gin.Engine to implement the Router interface
 type GinRouter struct {
-	engine *gin.Engine
+	engine    *gin.Engine
+	baseGroup *gin.RouterGroup // Optional base group when BasePath is configured
 }
 
 // GinRouterGroup wraps gin.RouterGroup to implement the RouterGroup interface
@@ -23,24 +24,17 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 	// Set gin mode
 	gin.SetMode(cfg.Mode)
 
-	// Create engine with default middleware or without based on config
-	var engine *gin.Engine
-	if cfg.EnableRecovery || cfg.EnableLogger {
-		engine = gin.New() // Start clean, we'll add our own middleware
-	} else {
-		engine = gin.New()
-	}
+	// Create engine
+	engine := gin.New()
 
 	// Set trusted proxies
 	if cfg.TrustedProxies != nil {
 		engine.SetTrustedProxies(cfg.TrustedProxies)
 	}
 
-	router := &GinRouter{engine: engine}
-
-	// Apply middleware in order: TraceID -> CORS -> Recovery -> Logger
+	// Apply middleware to engine first
 	if cfg.EnableTraceID {
-		router.Use(middleware.TraceID())
+		engine.Use(middleware.TraceID())
 	}
 
 	if cfg.EnableCORS {
@@ -52,15 +46,22 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 			AllowCredentials: cfg.AllowCredentials,
 			MaxAge:           cfg.MaxAge,
 		})
-		router.Use(corsMiddleware)
+		engine.Use(corsMiddleware)
 	}
 
 	if cfg.EnableRecovery {
-		router.Use(middleware.Recovery(cfg.Logger))
+		engine.Use(middleware.Recovery(cfg.Logger))
 	}
 
 	if cfg.EnableLogger {
-		router.Use(middleware.Logger(cfg.Logger))
+		engine.Use(middleware.Logger(cfg.Logger))
+	}
+
+	router := &GinRouter{engine: engine}
+
+	// If BasePath is configured, create a base group
+	if cfg.BasePath != "" {
+		router.baseGroup = engine.Group(cfg.BasePath)
 	}
 
 	return router
@@ -73,47 +74,84 @@ func (r *GinRouter) Handler() http.Handler {
 
 // Use adds middleware to the router
 func (r *GinRouter) Use(middleware ...gin.HandlerFunc) {
-	r.engine.Use(middleware...)
+	if r.baseGroup != nil {
+		r.baseGroup.Use(middleware...)
+	} else {
+		r.engine.Use(middleware...)
+	}
 }
 
 // GET registers a GET route
 func (r *GinRouter) GET(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.GET(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.GET(relativePath, handlers...)
+	} else {
+		r.engine.GET(relativePath, handlers...)
+	}
 }
 
 // POST registers a POST route
 func (r *GinRouter) POST(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.POST(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.POST(relativePath, handlers...)
+	} else {
+		r.engine.POST(relativePath, handlers...)
+	}
 }
 
 // PUT registers a PUT route
 func (r *GinRouter) PUT(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.PUT(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.PUT(relativePath, handlers...)
+	} else {
+		r.engine.PUT(relativePath, handlers...)
+	}
 }
 
 // DELETE registers a DELETE route
 func (r *GinRouter) DELETE(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.DELETE(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.DELETE(relativePath, handlers...)
+	} else {
+		r.engine.DELETE(relativePath, handlers...)
+	}
 }
 
 // PATCH registers a PATCH route
 func (r *GinRouter) PATCH(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.PATCH(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.PATCH(relativePath, handlers...)
+	} else {
+		r.engine.PATCH(relativePath, handlers...)
+	}
 }
 
 // OPTIONS registers an OPTIONS route
 func (r *GinRouter) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.OPTIONS(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.OPTIONS(relativePath, handlers...)
+	} else {
+		r.engine.OPTIONS(relativePath, handlers...)
+	}
 }
 
 // HEAD registers a HEAD route
 func (r *GinRouter) HEAD(relativePath string, handlers ...gin.HandlerFunc) {
-	r.engine.HEAD(relativePath, handlers...)
+	if r.baseGroup != nil {
+		r.baseGroup.HEAD(relativePath, handlers...)
+	} else {
+		r.engine.HEAD(relativePath, handlers...)
+	}
 }
 
 // Group creates a new route group with the given prefix
 func (r *GinRouter) Group(relativePath string, handlers ...gin.HandlerFunc) *GinRouterGroup {
-	group := r.engine.Group(relativePath, handlers...)
+	var group *gin.RouterGroup
+	if r.baseGroup != nil {
+		group = r.baseGroup.Group(relativePath, handlers...)
+	} else {
+		group = r.engine.Group(relativePath, handlers...)
+	}
 	return &GinRouterGroup{group: group}
 }
 
