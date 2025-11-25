@@ -18,8 +18,10 @@ type CORSConfig struct {
 }
 
 func CORS(cfg CORSConfig) gin.HandlerFunc {
+	// Check if wildcard is requested
+	allowAllOrigins := len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*"
+
 	config := cors.Config{
-		AllowOrigins:     cfg.AllowedOrigins,
 		AllowMethods:     cfg.AllowedMethods,
 		AllowHeaders:     cfg.AllowedHeaders,
 		ExposeHeaders:    cfg.ExposedHeaders,
@@ -27,9 +29,11 @@ func CORS(cfg CORSConfig) gin.HandlerFunc {
 		MaxAge:           cfg.MaxAge,
 	}
 
-	if len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*" {
+	if allowAllOrigins {
 		config.AllowAllOrigins = true
-		config.AllowCredentials = false
+		config.AllowCredentials = false // Cannot use credentials with wildcard
+	} else {
+		config.AllowOrigins = cfg.AllowedOrigins
 	}
 
 	return cors.New(config)
