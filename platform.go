@@ -8,25 +8,6 @@
 //   - Logger injection with loki-logger-go
 //   - Graceful shutdown with context support
 //   - Clean API for route registration
-//
-// Basic usage:
-//
-//	logger, _ := loki.New(models.DefaultConfig(), models.WithAppName("my-app"))
-//	platform, err := httpplatform.New(
-//	    config.DefaultConfig(),
-//	    config.WithPort(8080),
-//	    config.WithLogger(logger),
-//	)
-//	if err != nil {
-//	    panic(err)
-//	}
-//
-//	platform.GET("/health", func(c *gin.Context) {
-//	    c.JSON(200, gin.H{"status": "ok"})
-//	})
-//
-//	ctx := context.Background()
-//	platform.Start(ctx)
 package httpplatform
 
 import (
@@ -41,7 +22,6 @@ import (
 
 	"github.com/edaniel30/http-platform-go/errors"
 	"github.com/edaniel30/http-platform-go/internal/adapters"
-	internalmodels "github.com/edaniel30/http-platform-go/models"
 	"github.com/edaniel30/loki-logger-go/models"
 	"github.com/gin-gonic/gin"
 )
@@ -49,7 +29,7 @@ import (
 // Platform is the main HTTP server platform
 // It encapsulates server lifecycle, routing, and middleware management
 type Platform struct {
-	config  internalmodels.Config
+	config  Config
 	router  *adapters.GinRouter
 	server  *http.Server
 	mu      sync.RWMutex
@@ -58,16 +38,7 @@ type Platform struct {
 
 // New creates a new HTTP platform with the given configuration and options
 // The configuration uses the functional options pattern for flexibility
-//
-// Example:
-//
-//	platform, err := httpplatform.New(
-//	    config.DefaultConfig(),
-//	    config.WithPort(8080),
-//	    config.WithLogger(myLogger),
-//	    config.WithMode("release"),
-//	)
-func New(cfg internalmodels.Config, opts ...internalmodels.Option) (*Platform, error) {
+func New(cfg Config, opts ...Option) (*Platform, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -93,14 +64,6 @@ func New(cfg internalmodels.Config, opts ...internalmodels.Option) (*Platform, e
 // Start begins listening for HTTP requests
 // It starts the server and blocks until context is cancelled or an error occurs
 // Graceful shutdown is handled automatically with a 5-second timeout
-//
-// Example:
-//
-//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-//	defer cancel()
-//	if err := platform.Start(ctx); err != nil {
-//	    log.Fatal(err)
-//	}
 func (p *Platform) Start(ctx context.Context) error {
 	p.mu.Lock()
 	if p.started {
@@ -173,13 +136,6 @@ func (p *Platform) Stop(ctx context.Context) error {
 
 // Use adds custom middleware to the platform
 // Middleware is applied in the order it's registered
-//
-// Example:
-//
-//	platform.Use(func(c *gin.Context) {
-//	    c.Set("custom", "value")
-//	    c.Next()
-//	})
 func (p *Platform) Use(middleware ...gin.HandlerFunc) {
 	p.router.Use(middleware...)
 }
@@ -221,12 +177,6 @@ func (p *Platform) HEAD(relativePath string, handlers ...gin.HandlerFunc) {
 
 // Group creates a new route group with the given prefix
 // Useful for organizing related routes under a common path
-//
-// Example:
-//
-//	api := platform.Group("/api/v1")
-//	api.GET("/users", listUsers)
-//	api.POST("/users", createUser)
 func (p *Platform) Group(relativePath string, handlers ...gin.HandlerFunc) *adapters.GinRouterGroup {
 	return p.router.Group(relativePath, handlers...)
 }
