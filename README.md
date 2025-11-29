@@ -384,6 +384,85 @@ defer stop()
 platform.Start(ctx)
 ```
 
+## Utility Functions
+
+The platform provides utility functions to simplify common request processing tasks.
+
+### QueryParamsToMap
+
+Extracts all query parameters and returns them as a `map[string]any`:
+
+```go
+func getUsersHandler(c *gin.Context) {
+    // Request: GET /users?name=John&age=30&status=active&status=pending
+
+    params := httpplatform.QueryParamsToMap(c)
+    // Result: map[string]any{
+    //   "name": "John",           // Single value as string
+    //   "age": "30",              // Single value as string
+    //   "status": []string{"active", "pending"}  // Multiple values as []string
+    // }
+
+    // Use the params in your business logic
+    name, _ := params["name"].(string)
+    age, _ := params["age"].(string)
+
+    // Handle multiple values
+    if statuses, ok := params["status"].([]string); ok {
+        // Process multiple status values
+        for _, status := range statuses {
+            // ...
+        }
+    }
+}
+```
+
+**Behavior:**
+- Single-value parameters are returned as `string`
+- Multi-value parameters are returned as `[]string`
+- Empty map if no query parameters
+
+### HeadersToMap
+
+Extracts all request headers and returns them as a `map[string]any`:
+
+```go
+func logHeadersHandler(c *gin.Context) {
+    // Request headers:
+    // Content-Type: application/json
+    // Accept: application/json, text/plain
+    // X-Request-ID: abc123
+    // Authorization: Bearer token
+
+    headers := httpplatform.HeadersToMap(c)
+    // Result: map[string]any{
+    //   "Content-Type": "application/json",
+    //   "Accept": []string{"application/json", "text/plain"},
+    //   "X-Request-Id": "abc123",
+    //   "Authorization": "Bearer token"
+    // }
+
+    // Access specific headers
+    contentType, _ := headers["Content-Type"].(string)
+
+    // Handle multiple header values
+    if accepts, ok := headers["Accept"].([]string); ok {
+        for _, accept := range accepts {
+            // Process each accept type
+        }
+    }
+
+    // Log for debugging
+    logger.Info("Request headers", models.Fields{"headers": headers})
+}
+```
+
+**Behavior:**
+- Single-value headers are returned as `string`
+- Multi-value headers are returned as `[]string`
+- Header names are case-sensitive as received from the client
+- Empty map if no headers
+
 ## Best Practices
 
 ### 1. Always Inject Logger
