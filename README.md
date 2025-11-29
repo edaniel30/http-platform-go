@@ -9,6 +9,7 @@ A powerful, flexible, and production-ready HTTP server platform for Go, built on
 - ⚙️ **Functional Options** - Flexible configuration using functional options pattern
 - 📝 **Logger Integration** - Built-in integration with [loki-logger-go](https://github.com/edaniel30/loki-logger-go)
 - 🛡️ **Production Ready** - Graceful shutdown, error handling, and thread-safe operations
+- ❌ **Error Handler Middleware** - Structured JSON error responses for HTTP errors
 - 🎯 **Type Safe** - Strongly typed configuration and handlers
 - 📚 **Well Documented** - Comprehensive godoc comments and examples
 
@@ -183,6 +184,7 @@ The platform automatically applies middleware in the following order:
 2. **CORS** - Handles cross-origin resource sharing
 3. **Recovery** - Recovers from panics and logs errors
 4. **Logger** - Logs all HTTP requests with method, path, status, and duration
+5. **Erros** - Error handler for Http default response
 
 ### Built-in Middleware
 
@@ -212,6 +214,115 @@ platform.Use(func(c *gin.Context) {
     duration := time.Since(start)
     log.Printf("Request took %v", duration)
 })
+```
+
+#### Error Handler Middleware
+
+The platform provides a comprehensive error handling middleware that automatically converts errors into structured JSON responses.
+
+```go
+// Apply globally to all routes
+platform.Use(httpplatform.ErrorHandler())
+
+// Or apply to specific routes
+platform.GET("/users/:id", httpplatform.ErrorHandler(), getUserHandler)
+
+// Or apply to a route group
+api := platform.Group("/api")
+api.Use(httpplatform.ErrorHandler())
+```
+
+**Handled Error Types:**
+
+The middleware handles the following error types and converts them to appropriate HTTP responses:
+
+| Error Type | HTTP Status | Description |
+|------------|-------------|-------------|
+| `NotFoundError` | 404 | Resource not found |
+| `UnauthorizedError` | 401 | Authentication required or failed |
+| `ConflictError` | 409 | Resource conflict (e.g., duplicate) |
+| `BadRequestError` | 400 | Invalid request data |
+| `DomainError` | 400 | Business logic error |
+| `ExternalServiceError` | Custom | External service error with custom status |
+| `validator.ValidationErrors` | 400 | Request validation errors |
+| `json.UnmarshalTypeError` | 400 | JSON type mismatch |
+| `panic` | 500 | Recovered panic |
+| Other errors | 500 | Generic internal server error |
+
+**Using Domain Errors in Handlers:**
+
+```go
+import "github.com/edaniel30/http-platform-go"
+
+func getUserHandler(c *gin.Context) {
+    id := c.Param("id")
+
+    user, err := userService.GetByID(id)
+    if err != nil {
+        // Return domain error - middleware will handle it
+        c.Error(httpplatform.NewNotFoundError("User not found"))
+        return
+    }
+
+    c.JSON(http.StatusOK, user)
+}
+```
+
+**Error Response Format:**
+
+All errors are returned in a consistent JSON format:
+
+```json
+{
+  "message": "User not found",
+  "error": "Not Found",
+  "status": 404,
+  "cause": []
+}
+```
+
+For validation errors, the `cause` field contains detailed information:
+
+```json
+{
+  "message": "Validation error",
+  "error": "Bad Request",
+  "status": 400,
+  "cause": [
+    {
+      "field": "Email",
+      "reason": "required"
+    },
+    {
+      "field": "Age",
+      "reason": "min=18"
+    }
+  ]
+}
+```
+
+**Available Error Constructors:**
+
+```go
+// Create domain errors
+httpplatform.NewNotFoundError("Resource not found")
+httpplatform.NewUnauthorizedError("Invalid credentials")
+httpplatform.NewConflictError("Resource already exists")
+httpplatform.NewBadRequestError("Invalid input")
+httpplatform.NewDomainError("Business rule violated")
+httpplatform.NewExternalServiceError("Service unavailable", 503)
+```
+
+**Panic Recovery:**
+
+The error handler middleware automatically recovers from panics and returns a 500 error:
+
+```go
+func panicHandler(c *gin.Context) {
+    panic("something went wrong")
+    // Middleware catches this and returns:
+    // {"message": "Internal server error panic", "error": "Internal Server Error", "status": 500}
+}
 ```
 
 ## Route Registration
@@ -382,7 +493,9 @@ http-platform-go/
 
 ## Error Handling
 
-The library provides custom error types for better error handling:
+### Configuration and Runtime Errors
+
+The library provides custom error types for platform configuration and runtime operations:
 
 ```go
 platform, err := httpplatform.New(config.DefaultConfig())
@@ -394,18 +507,29 @@ if err != nil {
 }
 ```
 
-Common errors:
+**Platform Errors:**
 - `ConfigError` - Configuration validation errors
 - `RuntimeError` - Runtime operation errors
 - `ErrAlreadyStarted` - Platform already started
 - `ErrNotStarted` - Platform not started
 - `ErrNilLogger` - Logger not provided
 
+### HTTP Domain Errors
+
+For handling HTTP request errors in your handlers, use the **Error Handler Middleware** which provides structured error responses for common HTTP error scenarios.
+
+See the [Error Handler Middleware](#error-handler-middleware) section for detailed documentation on:
+- Available error types (NotFoundError, UnauthorizedError, ConflictError, etc.)
+- How to use domain errors in your handlers
+- Error response format
+- Validation error handling
+
 ## Dependencies
 
 - [gin-gonic/gin](https://github.com/gin-gonic/gin) - HTTP web framework
 - [gin-contrib/cors](https://github.com/gin-contrib/cors) - CORS middleware
 - [google/uuid](https://github.com/google/uuid) - UUID generation
+- [go-playground/validator](https://github.com/go-playground/validator) - Struct validation
 - [edaniel30/loki-logger-go](https://github.com/edaniel30/loki-logger-go) - Loki logger
 
 ## Contributing

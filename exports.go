@@ -2,6 +2,7 @@ package httpplatform
 
 import (
 	"github.com/edaniel30/http-platform-go/errors"
+	"github.com/edaniel30/http-platform-go/middleware"
 	config "github.com/edaniel30/http-platform-go/models"
 )
 
@@ -43,11 +44,25 @@ var (
 // Re-export error functions from errors package
 // This allows users to work with platform errors without importing the errors package separately
 var (
-	NewConfigError   = errors.NewConfigError
-	ErrNilLogger     = errors.ErrNilLogger
-	ErrInvalidPort   = errors.ErrInvalidPort
-	ErrInvalidMode   = errors.ErrInvalidMode
-	NewRuntimeError  = errors.NewRuntimeError
+	// Configuration errors
+	NewConfigError    = errors.NewConfigError
+	ErrNilLogger      = errors.ErrNilLogger
+	ErrInvalidPort    = errors.ErrInvalidPort
+	ErrInvalidMode    = errors.ErrInvalidMode
+	NewRuntimeError   = errors.NewRuntimeError
 	ErrAlreadyStarted = errors.ErrAlreadyStarted
-	ErrNotStarted    = errors.ErrNotStarted
+	ErrNotStarted     = errors.ErrNotStarted
+
+	// HTTP domain errors
+	NewNotFoundError         = errors.NewNotFoundError
+	NewUnauthorizedError     = errors.NewUnauthorizedError
+	NewConflictError         = errors.NewConflictError
+	NewBadRequestError       = errors.NewBadRequestError
+	NewExternalServiceError  = errors.NewExternalServiceError
+	NewDomainError           = errors.NewDomainError
+)
+
+// Re-export middleware functions
+var (
+	ErrorHandler = middleware.ErrorHandler
 )
