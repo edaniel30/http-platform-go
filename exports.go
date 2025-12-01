@@ -127,7 +127,9 @@ var (
 var (
 	// ErrorHandler creates a middleware that handles errors and converts them to structured JSON responses.
 	// It automatically handles domain errors (NotFoundError, UnauthorizedError, etc.), validation errors,
-	// JSON unmarshaling errors, and panics. Apply globally with platform.Use(ErrorHandler()) or to specific
-	// routes/groups. Returns consistent JSON format: {"message": "...", "error": "...", "status": 400, "cause": [...]}
+	// JSON unmarshaling errors, and panics. Requires a logger instance for automatic error logging with
+	// request context (method, path, client IP, trace ID, error type, status).
+	// Apply globally with platform.Use(ErrorHandler(logger)) or to specific routes/groups.
+	// Returns consistent JSON format: {"message": "...", "error": "...", "status": 400, "cause": [...]}
 	ErrorHandler = middleware.ErrorHandler
 )

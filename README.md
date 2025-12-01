@@ -218,42 +218,92 @@ platform.Use(func(c *gin.Context) {
 
 #### Error Handler Middleware
 
-The platform provides a comprehensive error handling middleware that automatically converts errors into structured JSON responses.
+The platform provides a comprehensive error handling middleware that automatically converts errors into structured JSON responses and logs them with request context.
+
+**Features:**
+- Automatic error logging with structured fields (method, path, client IP, trace ID, error type, status)
+- Consistent JSON error responses
+- Panic recovery with logging
+- Validation error details
+
+**Usage:**
 
 ```go
+// Get the logger from your platform config
+logger := myLogger // Your loki.Logger instance
+
 // Apply globally to all routes
-platform.Use(httpplatform.ErrorHandler())
+platform.Use(httpplatform.ErrorHandler(logger))
 
 // Or apply to specific routes
-platform.GET("/users/:id", httpplatform.ErrorHandler(), getUserHandler)
+platform.GET("/users/:id", httpplatform.ErrorHandler(logger), getUserHandler)
 
 // Or apply to a route group
 api := platform.Group("/api")
-api.Use(httpplatform.ErrorHandler())
+api.Use(httpplatform.ErrorHandler(logger))
 ```
+
+**What gets logged:**
+
+Every error automatically logs the following fields:
+- `method` - HTTP method (GET, POST, etc.)
+- `path` - Request path
+- `client_ip` - Client IP address
+- `trace_id` - Trace ID (if TraceID middleware is enabled)
+- `error` - Error message
+- `error_type` - Type of error (NotFoundError, ValidationError, etc.)
+- `status` - HTTP status code
+- Additional context depending on error type
 
 **Handled Error Types:**
 
-The middleware handles the following error types and converts them to appropriate HTTP responses:
+The middleware handles the following error types organized by category:
 
-| Error Type | HTTP Status | Description |
-|------------|-------------|-------------|
-| `NotFoundError` | 404 | Resource not found |
-| `UnauthorizedError` | 401 | Authentication required or failed |
-| `ConflictError` | 409 | Resource conflict (e.g., duplicate) |
-| `BadRequestError` | 400 | Invalid request data |
-| `DomainError` | 400 | Business logic error |
-| `ExternalServiceError` | Custom | External service error with custom status |
-| `validator.ValidationErrors` | 400 | Request validation errors |
-| `json.UnmarshalTypeError` | 400 | JSON type mismatch |
-| `panic` | 500 | Recovered panic |
-| Other errors | 500 | Generic internal server error |
+#### Validation Errors
+
+| Error Type | HTTP Status | Description | Error Type Label |
+|------------|-------------|-------------|------------------|
+| `validator.ValidationErrors` | 400 Bad Request | Struct validation errors (required, min, max, etc.) | `ValidationError` |
+| `json.UnmarshalTypeError` | 400 Bad Request | JSON type mismatch during unmarshaling | `UnmarshalTypeError` |
+
+#### Application/Domain Errors
+
+| Error Type | HTTP Status | Description | Error Type Label |
+|------------|-------------|-------------|------------------|
+| `NotFoundError` | 404 Not Found | Resource not found | `NotFoundError` |
+| `UnauthorizedError` | 401 Unauthorized | Authentication required or failed | `UnauthorizedError` |
+| `BadRequestError` | 400 Bad Request | Invalid request data | `BadRequestError` |
+| `DomainError` | 400 Bad Request | Business logic error | `DomainError` |
+| `ConflictError` | 409 Conflict | Resource conflict (e.g., duplicate) | `ConflictError` |
+| `ExternalServiceError` | Custom Status | External service error with custom status code | `ExternalServiceError` |
+
+#### MongoDB/Database Errors
+
+| Error Type | HTTP Status | Description | Error Type Label |
+|------------|-------------|-------------|------------------|
+| `mongokit.ErrNoDocuments` | 404 Not Found | No documents found in MongoDB query | `DocumentNotFoundError` |
+| `mongokit.IsDuplicateKeyError` | 409 Conflict | MongoDB duplicate key error (E11000) | `DuplicateKeyError` |
+| `mongokit.ErrInvalidObjectID` | 400 Bad Request | Invalid ObjectID format (invalid hex string) | `InvalidObjectIDError` |
+| `mongokit.ErrClientDisconnected` | 503 Service Unavailable | MongoDB client is disconnected | `DatabaseConnectionError` |
+| `mongokit.IsTimeout` | 504 Gateway Timeout | MongoDB operation timed out | `DatabaseTimeoutError` |
+| `mongokit.IsNetworkError` | 503 Service Unavailable | MongoDB network error | `DatabaseNetworkError` |
+
+#### System Errors
+
+| Error Type | HTTP Status | Description | Error Type Label |
+|------------|-------------|-------------|------------------|
+| `panic` | 500 Internal Server Error | Recovered panic with stack trace | `N/A` |
+| Unknown errors | 500 Internal Server Error | Generic unhandled errors | `UnknownError` |
 
 **Using Domain Errors in Handlers:**
 
 ```go
-import "github.com/edaniel30/http-platform-go"
+import (
+    "github.com/edaniel30/http-platform-go"
+    mongokit "github.com/edaniel30/mongo-kit-go"
+)
 
+// Example 1: Using domain errors
 func getUserHandler(c *gin.Context) {
     id := c.Param("id")
 
@@ -261,6 +311,30 @@ func getUserHandler(c *gin.Context) {
     if err != nil {
         // Return domain error - middleware will handle it
         c.Error(httpplatform.NewNotFoundError("User not found"))
+        return
+    }
+
+    c.JSON(http.StatusOK, user)
+}
+
+// Example 2: MongoDB errors are automatically handled
+func getUserByObjectIDHandler(c *gin.Context) {
+    idParam := c.Param("id")
+
+    // Convert string to ObjectID - middleware handles invalid format automatically
+    objectID, err := mongokit.ToObjectID(idParam)
+    if err != nil {
+        // Returns 400 Bad Request with "Invalid ObjectID format"
+        c.Error(err)
+        return
+    }
+
+    user, err := userRepo.FindByID(objectID)
+    if err != nil {
+        // Returns 404 Not Found with "Document not found" for ErrNoDocuments
+        // Returns 503 Service Unavailable for connection errors
+        // Returns 504 Gateway Timeout for timeout errors
+        c.Error(err)
         return
     }
 
@@ -297,6 +371,44 @@ For validation errors, the `cause` field contains detailed information:
       "field": "Age",
       "reason": "min=18"
     }
+  ]
+}
+```
+
+**Automatic Error Logging Example:**
+
+When an error occurs, it's automatically logged with structured context:
+
+```json
+{
+  "level": "error",
+  "message": "HTTP error",
+  "method": "GET",
+  "path": "/users/123",
+  "client_ip": "192.168.1.100",
+  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
+  "error": "User not found",
+  "error_type": "NotFoundError",
+  "status": 404
+}
+```
+
+For validation errors, additional details are included:
+
+```json
+{
+  "level": "error",
+  "message": "HTTP error",
+  "method": "POST",
+  "path": "/users",
+  "client_ip": "192.168.1.100",
+  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
+  "error": "validation failed",
+  "error_type": "ValidationError",
+  "status": 400,
+  "validation_errors": [
+    {"field": "Email", "reason": "required"},
+    {"field": "Age", "reason": "min=18"}
   ]
 }
 ```
