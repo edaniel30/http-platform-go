@@ -168,22 +168,22 @@ func handleError(ctx *gin.Context, err error) {
 		// Check for mongo-kit/MongoDB driver errors
 		if errors.Is(err, mongokit.ErrNoDocuments) {
 			errorType = "DocumentNotFoundError"
-			apiErr = NewApiError("Document not found", http.StatusNotFound)
+			apiErr = NewApiError(err.Error(), http.StatusNotFound)
 		} else if mongokit.IsDuplicateKeyError(err) {
 			errorType = "DuplicateKeyError"
 			apiErr = NewApiError(err.Error(), http.StatusConflict)
 		} else if errors.Is(err, mongokit.ErrInvalidObjectID) {
 			errorType = "InvalidObjectIDError"
-			apiErr = NewApiError("Invalid ObjectID format", http.StatusBadRequest)
+			apiErr = NewApiError(err.Error(), http.StatusBadRequest)
 		} else if errors.Is(err, mongokit.ErrClientDisconnected) {
 			errorType = "DatabaseConnectionError"
-			apiErr = NewApiError("Database connection unavailable", http.StatusServiceUnavailable)
+			apiErr = NewApiError(err.Error(), http.StatusServiceUnavailable)
 		} else if mongokit.IsTimeout(err) {
 			errorType = "DatabaseTimeoutError"
-			apiErr = NewApiError("Database operation timed out", http.StatusGatewayTimeout)
+			apiErr = NewApiError(err.Error(), http.StatusGatewayTimeout)
 		} else if mongokit.IsNetworkError(err) {
 			errorType = "DatabaseNetworkError"
-			apiErr = NewApiError("Database network error", http.StatusServiceUnavailable)
+			apiErr = NewApiError(err.Error(), http.StatusServiceUnavailable)
 		} else {
 			errorType = "UnknownError"
 			apiErr = NewApiError("An error occurred", http.StatusInternalServerError)
