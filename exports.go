@@ -6,13 +6,6 @@ import (
 	config "github.com/edaniel30/http-platform-go/models"
 )
 
-// Config type from config package
-// This allows users to use httpplatform.Config instead of importing the config package separately
-type Config = config.Config
-
-// Option type
-type Option = config.Option
-
 // DefaultConfig function
 // Returns a Config with sensible defaults
 var DefaultConfig = config.DefaultConfig

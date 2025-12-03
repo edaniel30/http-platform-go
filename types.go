@@ -3,12 +3,28 @@ package httpplatform
 import (
 	"net/http"
 
+	config "github.com/edaniel30/http-platform-go/models"
 	"github.com/gin-gonic/gin"
 )
 
-// HandlerFunc is the standard HTTP handler function signature
-// It wraps http.HandlerFunc for use with Platform
-type HandlerFunc func(c *gin.Context)
+// Config type from config package
+// This allows users to use httpplatform.Config instead of importing the config package separately
+type Config = config.Config
+
+// Option type
+type Option = config.Option
+
+// Gin Framework Types
+// These types are exported to avoid direct gin-gonic/gin imports in consuming applications
+
+// Context wraps gin.Context to provide HTTP request/response handling capabilities.
+// It includes methods for binding request data, setting response status, headers, and more.
+// Use this type in handlers instead of directly importing gin.Context from gin-gonic/gin.
+type Context = gin.Context
+
+// HandlerFunc defines the handler function signature for HTTP endpoints.
+// Use this type when creating middleware or handler functions instead of gin.HandlerFunc.
+type HandlerFunc = gin.HandlerFunc
 
 // MiddlewareFunc is the signature for HTTP middleware
 // Middleware can be added to the platform to intercept and process requests
