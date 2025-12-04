@@ -67,9 +67,23 @@ var (
 
 	// WithTrustedProxies sets the list of trusted proxy IP addresses
 	WithTrustedProxies = config.WithTrustedProxies
+
+	// WithTelemetry enables OpenTelemetry tracing with Datadog
+	// serviceName: name of the service (e.g., "guardian-auth")
+	// version: service version (e.g., "1.0.0")
+	// environment: deployment environment (e.g., "production", "staging", "development")
+	// otlpEndpoint: Datadog Agent endpoint (e.g., "192.168.1.100:4318")
+	WithTelemetry = config.WithTelemetry
+
+	// WithTelemetrySampling configures trace sampling
+	// sampleAll: if true, samples all traces. If false, uses default sampling (10%)
+	WithTelemetrySampling = config.WithTelemetrySampling
+
+	// WithoutTelemetry disables telemetry (default is disabled)
+	WithoutTelemetry = config.WithoutTelemetry
 )
 
-// Re-export error functions from errors package
+// Error functions from errors package
 // This allows users to work with platform errors without importing the errors package separately
 var (
 	// Configuration and Runtime Errors
