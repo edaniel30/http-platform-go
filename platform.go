@@ -22,6 +22,7 @@ import (
 
 	"github.com/edaniel30/http-platform-go/errors"
 	"github.com/edaniel30/http-platform-go/internal/adapters"
+	"github.com/edaniel30/http-platform-go/internal/telemetry"
 	"github.com/edaniel30/loki-logger-go/models"
 	"github.com/gin-gonic/gin"
 )
@@ -29,11 +30,12 @@ import (
 // Platform is the main HTTP server platform
 // It encapsulates server lifecycle, routing, and middleware management
 type Platform struct {
-	config  Config
-	router  *adapters.GinRouter
-	server  *http.Server
-	mu      sync.RWMutex
-	started bool
+	config           Config
+	router           *adapters.GinRouter
+	server           *http.Server
+	telemetryManager *telemetry.TelemetryManager
+	mu               sync.RWMutex
+	started          bool
 }
 
 // New creates a new HTTP platform with the given configuration and options
@@ -51,11 +53,38 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 		return nil, err
 	}
 
+	// Initialize telemetry if enabled
+	var tm *telemetry.TelemetryManager
+	if cfg.EnableTelemetry {
+		telemetryCfg := telemetry.Config{
+			ServiceName:    cfg.ServiceName,
+			ServiceVersion: cfg.ServiceVersion,
+			Environment:    cfg.Environment,
+			OTLPEndpoint:   cfg.OTLPEndpoint,
+			SampleAll:      cfg.TelemetrySampleAll,
+		}
+
+		var err error
+		tm, err = telemetry.Init(context.Background(), telemetryCfg)
+		if err != nil {
+			cfg.Logger.Error("failed to initialize telemetry", models.Fields{"error": err})
+			// Don't fail the entire platform startup, just log the error
+			tm = nil
+		} else {
+			cfg.Logger.Info("telemetry initialized successfully", models.Fields{
+				"service":  cfg.ServiceName,
+				"version":  cfg.ServiceVersion,
+				"endpoint": cfg.OTLPEndpoint,
+			})
+		}
+	}
+
 	router := adapters.NewGinRouter(cfg)
 
 	p := &Platform{
-		config: cfg,
-		router: router,
+		config:           cfg,
+		router:           router,
+		telemetryManager: tm,
 	}
 
 	return p, nil
@@ -116,6 +145,16 @@ func (p *Platform) Start(ctx context.Context) error {
 		return errors.NewRuntimeError("shutdown failed", err)
 	}
 
+	// Shutdown telemetry if initialized
+	if p.telemetryManager != nil {
+		p.config.Logger.Info("shutting down telemetry...")
+		if err := p.telemetryManager.Shutdown(shutdownCtx); err != nil {
+			p.config.Logger.Error("error shutting down telemetry", models.Fields{"error": err})
+		} else {
+			p.config.Logger.Info("telemetry shutdown complete")
+		}
+	}
+
 	p.config.Logger.Info("server stopped gracefully")
 	p.config.Logger.Close()
 
@@ -131,7 +170,19 @@ func (p *Platform) Stop(ctx context.Context) error {
 		return errors.ErrNotStarted()
 	}
 
-	return p.server.Shutdown(ctx)
+	// Shutdown server
+	if err := p.server.Shutdown(ctx); err != nil {
+		return err
+	}
+
+	// Shutdown telemetry if initialized
+	if p.telemetryManager != nil {
+		if err := p.telemetryManager.Shutdown(ctx); err != nil {
+			p.config.Logger.Error("error shutting down telemetry", models.Fields{"error": err})
+		}
+	}
+
+	return nil
 }
 
 // Use adds custom middleware to the platform

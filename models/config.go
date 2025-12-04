@@ -49,31 +49,45 @@ type Config struct {
 
 	// TrustedProxies defines a list of trusted proxies
 	TrustedProxies []string
+
+	// Telemetry configuration (OpenTelemetry with Datadog)
+	EnableTelemetry    bool
+	ServiceName        string
+	ServiceVersion     string
+	Environment        string
+	OTLPEndpoint       string // e.g., "192.168.1.100:4318" for Datadog Agent
+	TelemetrySampleAll bool   // If true, samples all traces. If false, uses default sampling
 }
 
 type Option func(*Config)
 
 func DefaultConfig() Config {
 	return Config{
-		Port:             8080,
-		Mode:             "debug",
-		ReadTimeout:      30 * time.Second,
-		WriteTimeout:     30 * time.Second,
-		IdleTimeout:      60 * time.Second,
-		MaxHeaderBytes:   1 << 20, // 1 MB
-		Logger:           nil,     // Must be set by user
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"},
-		AllowedHeaders:   []string{"*"},
-		ExposedHeaders:   []string{"Content-Length", "X-Trace-Id"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-		EnableTraceID:    true,
-		EnableCORS:       true,
-		EnableRecovery:   true,
-		EnableLogger:     true,
-		BasePath:         "",
-		TrustedProxies:   nil,
+		Port:               8080,
+		Mode:               "debug",
+		ReadTimeout:        30 * time.Second,
+		WriteTimeout:       30 * time.Second,
+		IdleTimeout:        60 * time.Second,
+		MaxHeaderBytes:     1 << 20, // 1 MB
+		Logger:             nil,     // Must be set by user
+		AllowedOrigins:     []string{"*"},
+		AllowedMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"},
+		AllowedHeaders:     []string{"*"},
+		ExposedHeaders:     []string{"Content-Length", "X-Trace-Id"},
+		AllowCredentials:   true,
+		MaxAge:             12 * time.Hour,
+		EnableTraceID:      true,
+		EnableCORS:         true,
+		EnableRecovery:     true,
+		EnableLogger:       true,
+		BasePath:           "",
+		TrustedProxies:     nil,
+		EnableTelemetry:    false,
+		ServiceName:        "http-platform-service",
+		ServiceVersion:     "1.0.0",
+		Environment:        "development",
+		OTLPEndpoint:       "localhost:4318",
+		TelemetrySampleAll: true,
 	}
 }
 
@@ -216,5 +230,27 @@ func WithBasePath(basePath string) Option {
 func WithTrustedProxies(proxies []string) Option {
 	return func(c *Config) {
 		c.TrustedProxies = proxies
+	}
+}
+
+func WithTelemetry(serviceName, version, environment, otlpEndpoint string) Option {
+	return func(c *Config) {
+		c.EnableTelemetry = true
+		c.ServiceName = serviceName
+		c.ServiceVersion = version
+		c.Environment = environment
+		c.OTLPEndpoint = otlpEndpoint
+	}
+}
+
+func WithTelemetrySampling(sampleAll bool) Option {
+	return func(c *Config) {
+		c.TelemetrySampleAll = sampleAll
+	}
+}
+
+func WithoutTelemetry() Option {
+	return func(c *Config) {
+		c.EnableTelemetry = false
 	}
 }

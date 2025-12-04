@@ -37,6 +37,11 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 		engine.Use(middleware.TraceID())
 	}
 
+	// Telemetry middleware (traces all HTTP requests)
+	if cfg.EnableTelemetry {
+		engine.Use(middleware.Telemetry(cfg.ServiceName))
+	}
+
 	if cfg.EnableCORS {
 		corsMiddleware := middleware.CORS(middleware.CORSConfig{
 			AllowedOrigins:   cfg.AllowedOrigins,
