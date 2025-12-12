@@ -33,15 +33,23 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 	}
 
 	// Apply middleware to engine first
+	// Order matters: TraceID -> ErrorHandler -> ContextCancellation -> CORS -> Telemetry -> Logger
+
+	// 1. TraceID - for traceability across the entire pipeline
 	if cfg.EnableTraceID {
 		engine.Use(middleware.TraceID())
 	}
 
-	// Telemetry middleware (traces all HTTP requests)
-	if cfg.EnableTelemetry {
-		engine.Use(middleware.Telemetry(cfg.ServiceName))
+	// 2. ErrorHandler - must be early to catch panics from other middleware
+	// This replaces the old Recovery middleware and handles all errors
+	engine.Use(middleware.ErrorHandler(cfg.Logger))
+
+	// 3. ContextCancellation - detect client disconnections early to avoid wasted work
+	if cfg.EnableContextCancellation {
+		engine.Use(middleware.ContextCancellation())
 	}
 
+	// 4. CORS - handle CORS before processing requests
 	if cfg.EnableCORS {
 		corsMiddleware := middleware.CORS(middleware.CORSConfig{
 			AllowedOrigins:   cfg.AllowedOrigins,
@@ -54,12 +62,14 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 		engine.Use(corsMiddleware)
 	}
 
-	if cfg.EnableRecovery {
-		engine.Use(middleware.Recovery(cfg.Logger))
+	// 5. Telemetry middleware (traces all HTTP requests)
+	if cfg.EnableTelemetry {
+		engine.Use(middleware.Telemetry(cfg.ServiceName))
 	}
 
+	// 6. Logger - log after all processing
 	if cfg.EnableLogger {
-		engine.Use(middleware.Logger(cfg.Logger))
+		engine.Use(middleware.BasicLogger(cfg.Logger))
 	}
 
 	router := &GinRouter{engine: engine}

@@ -17,6 +17,10 @@ type CORSConfig struct {
 	MaxAge           time.Duration
 }
 
+// CORS creates a CORS middleware with the given configuration
+// Important: According to the CORS specification, when using wildcard origin "*",
+// credentials (cookies, HTTP auth) cannot be allowed. This middleware enforces
+// this requirement by automatically setting AllowCredentials to false when "*" is used.
 func CORS(cfg CORSConfig) gin.HandlerFunc {
 	// Check if wildcard is requested
 	allowAllOrigins := len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*"
@@ -31,7 +35,9 @@ func CORS(cfg CORSConfig) gin.HandlerFunc {
 
 	if allowAllOrigins {
 		config.AllowAllOrigins = true
-		config.AllowCredentials = false // Cannot use credentials with wildcard
+		// CORS spec requirement: credentials cannot be used with wildcard origin
+		// This is enforced regardless of cfg.AllowCredentials value
+		config.AllowCredentials = false
 	} else {
 		config.AllowOrigins = cfg.AllowedOrigins
 	}

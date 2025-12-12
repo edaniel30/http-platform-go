@@ -4,10 +4,31 @@
 //
 // Key features:
 //   - Functional options pattern for configuration
-//   - Automatic middleware chain (TraceID, CORS, Recovery, Logger)
-//   - Logger injection with loki-logger-go
+//   - Automatic middleware chain (TraceID, ErrorHandler, ContextCancellation, CORS, Telemetry, Logger)
+//   - Logger injection (any logger that implements middleware.Logger interface)
 //   - Graceful shutdown with context support
 //   - Clean API for route registration
+//   - Context cancellation detection for client disconnections
+//
+// Logger Lifecycle:
+// The platform does NOT close the logger during shutdown. The logger lifecycle is managed
+// by the caller who created it. This allows the logger to be used by other parts of the
+// application and prevents panics if the platform is started/stopped multiple times.
+//
+// Example:
+//
+//	logger := mylogger.New()
+//	defer logger.Close() // Caller is responsible for closing
+//
+//	cfg := httpplatform.DefaultConfig()
+//	cfg.Logger = logger
+//	platform, _ := httpplatform.New(cfg)
+//
+//	platform.GET("/health", func(c *gin.Context) {
+//	    c.JSON(200, gin.H{"status": "ok"})
+//	})
+//
+//	platform.Start(context.Background())
 package httpplatform
 
 import (
@@ -23,7 +44,7 @@ import (
 	"github.com/edaniel30/http-platform-go/errors"
 	"github.com/edaniel30/http-platform-go/internal/adapters"
 	"github.com/edaniel30/http-platform-go/internal/telemetry"
-	"github.com/edaniel30/loki-logger-go/models"
+	"github.com/edaniel30/http-platform-go/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -64,14 +85,15 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 			SampleAll:      cfg.TelemetrySampleAll,
 		}
 
+		ctx := context.Background()
 		var err error
-		tm, err = telemetry.Init(context.Background(), telemetryCfg)
+		tm, err = telemetry.Init(ctx, telemetryCfg)
 		if err != nil {
-			cfg.Logger.Error("failed to initialize telemetry", models.Fields{"error": err})
+			cfg.Logger.Error(ctx, "failed to initialize telemetry", middleware.Fields{"error": err})
 			// Don't fail the entire platform startup, just log the error
 			tm = nil
 		} else {
-			cfg.Logger.Info("telemetry initialized successfully", models.Fields{
+			cfg.Logger.Info(ctx, "telemetry initialized successfully", middleware.Fields{
 				"service":  cfg.ServiceName,
 				"version":  cfg.ServiceVersion,
 				"endpoint": cfg.OTLPEndpoint,
@@ -117,7 +139,7 @@ func (p *Platform) Start(ctx context.Context) error {
 
 	errChan := make(chan error, 1)
 	go func() {
-		p.config.Logger.Info("server started", models.Fields{
+		p.config.Logger.Info(ctx, "server started", middleware.Fields{
 			"port": p.config.Port,
 			"mode": p.config.Mode,
 		})
@@ -129,9 +151,9 @@ func (p *Platform) Start(ctx context.Context) error {
 
 	select {
 	case <-quit:
-		p.config.Logger.Info("shutdown signal received")
+		p.config.Logger.Info(ctx, "shutdown signal received", middleware.Fields{})
 	case <-ctx.Done():
-		p.config.Logger.Info("context cancelled, shutting down")
+		p.config.Logger.Info(ctx, "context cancelled, shutting down", middleware.Fields{})
 	case err := <-errChan:
 		return err
 	}
@@ -139,29 +161,51 @@ func (p *Platform) Start(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	p.config.Logger.Info("shutting down server...")
+	// Accumulate all shutdown errors instead of returning early
+	var shutdownErrors []error
+
+	// Shutdown server
+	p.config.Logger.Info(shutdownCtx, "shutting down server...", middleware.Fields{})
 	if err := p.server.Shutdown(shutdownCtx); err != nil {
-		p.config.Logger.Error("error during shutdown", models.Fields{"error": err})
-		return errors.NewRuntimeError("shutdown failed", err)
+		p.config.Logger.Error(shutdownCtx, "error during server shutdown", middleware.Fields{"error": err})
+		shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("server shutdown failed", err))
 	}
 
-	// Shutdown telemetry if initialized
+	// Shutdown telemetry if initialized (always attempt even if server shutdown failed)
 	if p.telemetryManager != nil {
-		p.config.Logger.Info("shutting down telemetry...")
+		p.config.Logger.Info(shutdownCtx, "shutting down telemetry...", middleware.Fields{})
 		if err := p.telemetryManager.Shutdown(shutdownCtx); err != nil {
-			p.config.Logger.Error("error shutting down telemetry", models.Fields{"error": err})
+			p.config.Logger.Error(shutdownCtx, "error shutting down telemetry", middleware.Fields{"error": err})
+			shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("telemetry shutdown failed", err))
 		} else {
-			p.config.Logger.Info("telemetry shutdown complete")
+			p.config.Logger.Info(shutdownCtx, "telemetry shutdown complete", middleware.Fields{})
 		}
 	}
 
-	p.config.Logger.Info("server stopped gracefully")
-	p.config.Logger.Close()
+	// Return accumulated errors if any
+	if len(shutdownErrors) > 0 {
+		// Log summary of errors
+		p.config.Logger.Error(shutdownCtx, "server stopped with errors", middleware.Fields{
+			"error_count": len(shutdownErrors),
+		})
+		// Return first error (most critical: server shutdown)
+		// Additional errors are already logged
+		return shutdownErrors[0]
+	}
+
+	p.config.Logger.Info(shutdownCtx, "server stopped gracefully", middleware.Fields{})
+
+	// Note: We do NOT call Logger.Close() here because:
+	// 1. The logger may be used by other parts of the application
+	// 2. The logger lifecycle should be managed by the caller who created it
+	// 3. Calling Close() here could cause panics if Start() is called multiple times
+	// The caller is responsible for closing the logger when the application exits.
 
 	return nil
 }
 
 // Stop gracefully shuts down the platform
+// If multiple components fail to shutdown, all errors are logged but only the first is returned.
 func (p *Platform) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -170,16 +214,28 @@ func (p *Platform) Stop(ctx context.Context) error {
 		return errors.ErrNotStarted()
 	}
 
+	// Accumulate all shutdown errors instead of returning early
+	var shutdownErrors []error
+
 	// Shutdown server
 	if err := p.server.Shutdown(ctx); err != nil {
-		return err
+		p.config.Logger.Error(ctx, "error during server shutdown", middleware.Fields{"error": err})
+		shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("server shutdown failed", err))
 	}
 
-	// Shutdown telemetry if initialized
+	// Shutdown telemetry if initialized (always attempt even if server shutdown failed)
 	if p.telemetryManager != nil {
 		if err := p.telemetryManager.Shutdown(ctx); err != nil {
-			p.config.Logger.Error("error shutting down telemetry", models.Fields{"error": err})
+			p.config.Logger.Error(ctx, "error shutting down telemetry", middleware.Fields{"error": err})
+			shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("telemetry shutdown failed", err))
 		}
+	}
+
+	// Return accumulated errors if any
+	if len(shutdownErrors) > 0 {
+		// Return first error (most critical: server shutdown)
+		// Additional errors are already logged
+		return shutdownErrors[0]
 	}
 
 	return nil
