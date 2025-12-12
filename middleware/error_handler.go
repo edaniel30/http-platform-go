@@ -1,16 +1,15 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"runtime/debug"
 
 	platformErrors "github.com/edaniel30/http-platform-go/errors"
-	"github.com/edaniel30/loki-logger-go"
-	"github.com/edaniel30/loki-logger-go/models"
-	mongokit "github.com/edaniel30/mongo-kit-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -47,13 +46,19 @@ func newValidationError(field, reason string) *validationError {
 	}
 }
 
-// ErrorHandler creates a middleware that handles errors and converts them to appropriate HTTP responses
-// This middleware should be added to the middleware chain to handle errors consistently across the application
-// It automatically logs all errors with structured logging including request context
-func ErrorHandler(logger *loki.Logger) gin.HandlerFunc {
+// ErrorHandler creates a middleware that handles errors and panics, converting them to appropriate HTTP responses
+// This middleware:
+// - Recovers from panics and logs them with stack traces
+// - Handles platform-specific errors (NotFound, Unauthorized, Forbidden, TooManyRequests, etc.)
+// - Handles validation errors from go-playground/validator
+// - Handles JSON parsing errors (syntax errors, type mismatches)
+// - Handles request body errors (empty body, incomplete body)
+// - Handles context cancellation (client disconnect, timeout)
+// - Logs errors with appropriate severity levels and structured fields
+//
+// For more advanced error handling (e.g., database-specific errors), implement a custom error handler in your application
+func ErrorHandler(logger Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-
 		// Setup panic recovery
 		defer func() {
 			if err := recover(); err != nil {
@@ -65,22 +70,19 @@ func ErrorHandler(logger *loki.Logger) gin.HandlerFunc {
 		c.Next()
 
 		// Handle any errors that were added during request processing
+		// Only handle the first error to avoid multiple responses
 		if len(c.Errors) > 0 {
-			for _, err := range c.Errors {
-				handleError(c, err.Err)
-			}
+			handleBasicError(c, c.Errors[0].Err, logger)
 		}
 	}
 }
 
-// handlePanic handles panics and converts them to appropriate error responses
-func handlePanic(ctx *gin.Context, err any, logger *loki.Logger) {
-	// Build log fields with request context
-	logFields := models.Fields{
-		"client_ip":          ctx.ClientIP(),
-		"method":             ctx.Request.Method,
-		"path":               ctx.Request.URL.Path,
-		"_skip_stack_trace": true, // Disable automatic stack trace
+// buildLogFields creates base log fields with request context and trace ID
+func buildLogFields(ctx *gin.Context) Fields {
+	logFields := Fields{
+		"client_ip": ctx.ClientIP(),
+		"method":    ctx.Request.Method,
+		"path":      ctx.Request.URL.Path,
 	}
 
 	// Add trace ID if available
@@ -88,105 +90,134 @@ func handlePanic(ctx *gin.Context, err any, logger *loki.Logger) {
 		logFields["trace_id"] = traceID
 	}
 
+	return logFields
+}
+
+// handlePanic handles panics and converts them to appropriate error responses
+func handlePanic(ctx *gin.Context, err any, logger Logger) {
+	// Build log fields with request context
+	logFields := buildLogFields(ctx)
+
+	reqCtx := ctx.Request.Context()
 	switch er := err.(type) {
 	case error:
 		logFields["panic"] = er.Error()
 		logFields["stack_trace"] = string(debug.Stack())
-		logger.Error("Panic recovered", logFields)
-		handleError(ctx, er)
+		logger.Error(reqCtx, "Panic recovered", logFields)
+		handleBasicError(ctx, er, logger)
 	default:
 		logFields["panic"] = fmt.Sprintf("%v", err)
 		logFields["stack_trace"] = string(debug.Stack())
-		logger.Error("Panic recovered (non-error type)", logFields)
+		logger.Error(reqCtx, "Panic recovered (non-error type)", logFields)
+		// Set Content-Type header before sending response
+		ctx.Header("Content-Type", "application/json; charset=utf-8")
 		ctx.AbortWithStatusJSON(
 			http.StatusInternalServerError,
 			NewApiError("Internal server error panic", http.StatusInternalServerError))
 	}
 }
 
-// handleError handles different types of errors and converts them to appropriate HTTP responses
-func handleError(ctx *gin.Context, err error) {
+// handleBasicError handles different types of errors and converts them to appropriate HTTP responses
+// This version only handles platform-specific errors, not database-specific errors
+func handleBasicError(ctx *gin.Context, err error, logger Logger) {
 	var apiErr *ApiError
 	var errorType string
 
 	// Build log fields with request context
-	logFields := models.Fields{
-		"method":    ctx.Request.Method,
-		"path":      ctx.Request.URL.Path,
-		"client_ip": ctx.ClientIP(),
-		"error":     err.Error(),
-	}
+	logFields := buildLogFields(ctx)
+	logFields["error"] = err.Error()
 
-	// Add trace ID if available
-	if traceID := GetTraceID(ctx); traceID != "" {
-		logFields["trace_id"] = traceID
-	}
-
-	switch error := err.(type) {
+	switch e := err.(type) {
 	case *platformErrors.NotFoundError:
 		errorType = "NotFoundError"
-		apiErr = NewApiError(error.Error(), http.StatusNotFound)
+		apiErr = NewApiError(e.Error(), http.StatusNotFound)
 
 	case *platformErrors.UnauthorizedError:
 		errorType = "UnauthorizedError"
-		apiErr = NewApiError(error.Error(), http.StatusUnauthorized)
-
-	case validator.ValidationErrors:
-		errorType = "ValidationError"
-		validationErrs := descriptiveValidationErrors(error)
-		apiErr = NewApiError("Validation error", http.StatusBadRequest, validationErrs)
-		logFields["validation_errors"] = validationErrs
-
-	case *platformErrors.DomainError:
-		errorType = "DomainError"
-		apiErr = NewApiError(error.Error(), http.StatusBadRequest)
+		apiErr = NewApiError(e.Error(), http.StatusUnauthorized)
 
 	case *platformErrors.ConflictError:
 		errorType = "ConflictError"
-		apiErr = NewApiError(error.Error(), http.StatusConflict)
+		apiErr = NewApiError(e.Error(), http.StatusConflict)
 
 	case *platformErrors.ExternalServiceError:
 		errorType = "ExternalServiceError"
-		apiErr = NewApiError(error.Error(), error.Status())
-		logFields["external_status"] = error.Status()
+		apiErr = NewApiError(e.Error(), e.Status())
+		logFields["external_status"] = e.Status()
 
 	case *platformErrors.BadRequestError:
 		errorType = "BadRequestError"
-		apiErr = NewApiError(error.Error(), http.StatusBadRequest)
+		apiErr = NewApiError(e.Error(), http.StatusBadRequest)
+
+	case *platformErrors.ForbiddenError:
+		errorType = "ForbiddenError"
+		apiErr = NewApiError(e.Error(), http.StatusForbidden)
+
+	case *platformErrors.UnprocessableEntityError:
+		errorType = "UnprocessableEntityError"
+		apiErr = NewApiError(e.Error(), http.StatusUnprocessableEntity)
+
+	case *platformErrors.TooManyRequestsError:
+		errorType = "TooManyRequestsError"
+		apiErr = NewApiError(e.Error(), http.StatusTooManyRequests)
+
+	case *platformErrors.InternalServerError:
+		errorType = "InternalServerError"
+		apiErr = NewApiError(e.Error(), http.StatusInternalServerError)
+
+	case *platformErrors.ServiceUnavailableError:
+		errorType = "ServiceUnavailableError"
+		apiErr = NewApiError(e.Error(), http.StatusServiceUnavailable)
 
 	case *json.UnmarshalTypeError:
 		errorType = "UnmarshalTypeError"
 		apiErr = NewApiError(
 			fmt.Sprintf("Invalid type for field '%s', expected %s but got %s",
-				error.Field, error.Type.String(), error.Value),
+				e.Field, e.Type.String(), e.Value),
 			http.StatusBadRequest,
 		)
-		logFields["field"] = error.Field
-		logFields["expected_type"] = error.Type.String()
+		logFields["field"] = e.Field
+		logFields["expected_type"] = e.Type.String()
+
+	case validator.ValidationErrors:
+		errorType = "ValidationError"
+		validationErrs := descriptiveValidationErrors(e)
+		apiErr = NewApiError("Validation error", http.StatusBadRequest, validationErrs)
+		logFields["validation_errors"] = validationErrs
+
+	case *json.SyntaxError:
+		errorType = "JSONSyntaxError"
+		apiErr = NewApiError(
+			fmt.Sprintf("Invalid JSON syntax at position %d", e.Offset),
+			http.StatusBadRequest,
+		)
+		logFields["offset"] = e.Offset
+		logFields["syntax_error"] = e.Error()
 
 	default:
-		// Check for mongo-kit/MongoDB driver errors
-		if errors.Is(err, mongokit.ErrNoDocuments) {
-			errorType = "DocumentNotFoundError"
-			apiErr = NewApiError(err.Error(), http.StatusNotFound)
-		} else if mongokit.IsDuplicateKeyError(err) {
-			errorType = "DuplicateKeyError"
-			apiErr = NewApiError(err.Error(), http.StatusConflict)
-		} else if errors.Is(err, mongokit.ErrInvalidObjectID) {
-			errorType = "InvalidObjectIDError"
-			apiErr = NewApiError(err.Error(), http.StatusBadRequest)
-		} else if errors.Is(err, mongokit.ErrClientDisconnected) {
-			errorType = "DatabaseConnectionError"
-			apiErr = NewApiError(err.Error(), http.StatusServiceUnavailable)
-		} else if mongokit.IsTimeout(err) {
-			errorType = "DatabaseTimeoutError"
-			apiErr = NewApiError(err.Error(), http.StatusGatewayTimeout)
-		} else if mongokit.IsNetworkError(err) {
-			errorType = "DatabaseNetworkError"
-			apiErr = NewApiError(err.Error(), http.StatusServiceUnavailable)
+		// Check for specific error types using errors.Is
+		if errors.Is(err, io.EOF) {
+			errorType = "EmptyBody"
+			apiErr = NewApiError("Request body is empty", http.StatusBadRequest)
+		} else if errors.Is(err, io.ErrUnexpectedEOF) {
+			errorType = "IncompleteBody"
+			apiErr = NewApiError("Request body is incomplete", http.StatusBadRequest)
+		} else if err == context.Canceled {
+			// Check for context cancellation errors
+			errorType = "RequestCanceled"
+			// 499 is nginx's non-standard status code for "Client Closed Request"
+			// Since HTTP doesn't have a standard code, we use 499 or could use 408 Request Timeout
+			apiErr = NewApiError("Request was cancelled by client", 499)
+			logFields["reason"] = "context_canceled"
+		} else if err == context.DeadlineExceeded {
+			errorType = "RequestTimeout"
+			apiErr = NewApiError("Request timeout exceeded", http.StatusRequestTimeout)
+			logFields["reason"] = "deadline_exceeded"
 		} else {
 			errorType = "UnknownError"
 			apiErr = NewApiError("An error occurred", http.StatusInternalServerError)
+			// Log full error for unknown errors
+			logFields["full_error"] = fmt.Sprintf("%+v", err)
 		}
 	}
 
@@ -194,18 +225,28 @@ func handleError(ctx *gin.Context, err error) {
 	logFields["error_type"] = errorType
 	logFields["status"] = apiErr.Status
 
+	// Log based on severity
+	reqCtx := ctx.Request.Context()
+	if apiErr.Status >= 500 {
+		logger.Error(reqCtx, "Server error", logFields)
+	} else {
+		logger.Warn(reqCtx, "Client error", logFields)
+	}
+
+	// Set Content-Type header before sending response
+	ctx.Header("Content-Type", "application/json; charset=utf-8")
 	ctx.AbortWithStatusJSON(apiErr.Status, apiErr)
 }
 
 // descriptiveValidationErrors converts validator.ValidationErrors to a descriptive format
-func descriptiveValidationErrors(veer validator.ValidationErrors) []*validationError {
+func descriptiveValidationErrors(validationErrs validator.ValidationErrors) []*validationError {
 	var errs []*validationError
-	for _, ve := range veer {
-		err := ve.ActualTag()
-		if ve.Param() != "" {
-			err = fmt.Sprintf("%s=%s", err, ve.Param())
+	for _, fieldErr := range validationErrs {
+		tagName := fieldErr.ActualTag()
+		if fieldErr.Param() != "" {
+			tagName = fmt.Sprintf("%s=%s", tagName, fieldErr.Param())
 		}
-		errs = append(errs, newValidationError(ve.Field(), err))
+		errs = append(errs, newValidationError(fieldErr.Field(), tagName))
 	}
 	return errs
 }

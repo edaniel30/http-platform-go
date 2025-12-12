@@ -19,11 +19,11 @@ func ErrNilLogger() error {
 }
 
 func ErrInvalidPort(port int) error {
-	return &configError{message: "invalid port"}
+	return &configError{message: fmt.Sprintf("invalid port: %d (must be between 1 and 65535)", port)}
 }
 
 func ErrInvalidMode(mode string) error {
-	return &configError{message: "invalid mode: must be debug, release, or test"}
+	return &configError{message: fmt.Sprintf("invalid mode: '%s' (must be debug, release, or test)", mode)}
 }
 
 type RuntimeError struct {
@@ -121,14 +121,62 @@ func NewExternalServiceError(msg string, status int) error {
 	return &ExternalServiceError{message: msg, status: status}
 }
 
-type DomainError struct {
+type ForbiddenError struct {
 	message string
 }
 
-func (e *DomainError) Error() string {
+func (e *ForbiddenError) Error() string {
 	return e.message
 }
 
-func NewDomainError(msg string) error {
-	return &DomainError{message: msg}
+func NewForbiddenError(msg string) error {
+	return &ForbiddenError{message: msg}
+}
+
+type UnprocessableEntityError struct {
+	message string
+}
+
+func (e *UnprocessableEntityError) Error() string {
+	return e.message
+}
+
+func NewUnprocessableEntityError(msg string) error {
+	return &UnprocessableEntityError{message: msg}
+}
+
+type TooManyRequestsError struct {
+	message string
+}
+
+func (e *TooManyRequestsError) Error() string {
+	return e.message
+}
+
+func NewTooManyRequestsError(msg string) error {
+	return &TooManyRequestsError{message: msg}
+}
+
+type InternalServerError struct {
+	message string
+}
+
+func (e *InternalServerError) Error() string {
+	return e.message
+}
+
+func NewInternalServerError(msg string) error {
+	return &InternalServerError{message: msg}
+}
+
+type ServiceUnavailableError struct {
+	message string
+}
+
+func (e *ServiceUnavailableError) Error() string {
+	return e.message
+}
+
+func NewServiceUnavailableError(msg string) error {
+	return &ServiceUnavailableError{message: msg}
 }

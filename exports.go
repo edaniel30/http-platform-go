@@ -56,11 +56,11 @@ var (
 	// WithoutCORS disables the CORS middleware
 	WithoutCORS = config.WithoutCORS
 
-	// WithoutRecovery disables the Recovery middleware
-	WithoutRecovery = config.WithoutRecovery
-
 	// WithoutLogger disables the Logger middleware
 	WithoutLogger = config.WithoutLogger
+
+	// WithoutContextCancellation disables the ContextCancellation middleware
+	WithoutContextCancellation = config.WithoutContextCancellation
 
 	// WithBasePath sets a base path prefix for all routes (e.g., "/api/v1")
 	WithBasePath = config.WithBasePath
@@ -123,11 +123,23 @@ var (
 	// NewBadRequestError creates a 400 Bad Request error with a custom message
 	NewBadRequestError = errors.NewBadRequestError
 
+	// NewForbiddenError creates a 403 Forbidden error with a custom message (user lacks permissions)
+	NewForbiddenError = errors.NewForbiddenError
+
+	// NewUnprocessableEntityError creates a 422 Unprocessable Entity error with a custom message (semantic validation errors)
+	NewUnprocessableEntityError = errors.NewUnprocessableEntityError
+
+	// NewTooManyRequestsError creates a 429 Too Many Requests error with a custom message (rate limiting)
+	NewTooManyRequestsError = errors.NewTooManyRequestsError
+
+	// NewInternalServerError creates a 500 Internal Server Error with a custom message
+	NewInternalServerError = errors.NewInternalServerError
+
+	// NewServiceUnavailableError creates a 503 Service Unavailable error with a custom message (temporary unavailability)
+	NewServiceUnavailableError = errors.NewServiceUnavailableError
+
 	// NewExternalServiceError creates an error for external service failures with a custom status code
 	NewExternalServiceError = errors.NewExternalServiceError
-
-	// NewDomainError creates a 400 error for business logic/domain rule violations
-	NewDomainError = errors.NewDomainError
 )
 
 // Middleware functions
@@ -139,4 +151,35 @@ var (
 	// Apply globally with platform.Use(ErrorHandler(logger)) or to specific routes/groups.
 	// Returns consistent JSON format: {"message": "...", "error": "...", "status": 400, "cause": [...]}
 	ErrorHandler = middleware.ErrorHandler
+
+	// ContextCancellation creates a middleware that detects client disconnections early.
+	// Enabled by default via cfg.EnableContextCancellation. Use this directly for specific routes only.
+	ContextCancellation = middleware.ContextCancellation
+
+	// WithTimeout creates a middleware that enforces a timeout for specific endpoints.
+	// Example: router.GET("/slow", httpplatform.WithTimeout(5*time.Second), handler)
+	WithTimeout = middleware.WithTimeout
+)
+
+// Context helper functions for checking request cancellation in handlers
+var (
+	// IsContextCancelled checks if the client has disconnected (context cancelled).
+	// Use in long-running handlers to avoid wasted work:
+	//   if httpplatform.IsContextCancelled(c) { return }
+	IsContextCancelled = middleware.IsContextCancelled
+
+	// GetContextError returns context.Canceled or context.DeadlineExceeded if applicable.
+	// Returns nil if the context is still valid.
+	GetContextError = middleware.GetContextError
+)
+
+// Logger interface and Fields type from middleware package
+// This allows users to implement custom loggers without importing middleware directly
+type (
+	// Logger is the interface that any logger implementation must satisfy.
+	// The platform expects a logger that implements this interface for structured logging.
+	Logger = middleware.Logger
+
+	// Fields represents a map of structured log fields for adding metadata to log entries.
+	Fields = middleware.Fields
 )
