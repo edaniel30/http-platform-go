@@ -2,17 +2,6 @@
 
 A powerful, flexible, and production-ready HTTP server platform for Go, built on top of Gin with automatic middleware setup, logger integration, and graceful shutdown.
 
-## Features
-
-- 🚀 **Simple API** - Clean and intuitive interface for building HTTP servers
-- 🔌 **Automatic Middleware** - TraceID, CORS, Recovery, and Logger pre-configured
-- ⚙️ **Functional Options** - Flexible configuration using functional options pattern
-- 📝 **Logger Integration** - Built-in integration with [loki-logger-go](https://github.com/edaniel30/loki-logger-go)
-- 🛡️ **Production Ready** - Graceful shutdown, error handling, and thread-safe operations
-- ❌ **Error Handler Middleware** - Structured JSON error responses for HTTP errors
-- 🎯 **Type Safe** - Strongly typed configuration and handlers
-- 📚 **Well Documented** - Comprehensive godoc comments and examples
-
 ## Installation
 
 ```bash
@@ -176,266 +165,17 @@ platform, err := httpplatform.New(
 platform.GET("/health", healthHandler)  // Accessible at: /api/v1/health
 ```
 
-## Middleware
+## Middlewares
 
 The platform automatically applies middleware in the following order:
 
-1. **TraceID** - Generates or extracts trace IDs for distributed tracing
-2. **CORS** - Handles cross-origin resource sharing
-3. **Recovery** - Recovers from panics and logs errors
-4. **Logger** - Logs all HTTP requests with method, path, status, and duration
-5. **Erros** - Error handler for Http default response
+1. [**TraceID**](docs/trace-middleware.md) - Generates or extracts trace IDs for distributed tracing
+2. [**ErrorHandler**](docs/error-handler-middleware.md) - Recovers from panics and handles all errors with structured responses
+3. [**ContextCancellation**](docs/context-middleware.md) - Detects client disconnections and request cancellations
+4. [**CORS**](docs/cors-middleware.md) - Handles cross-origin resource sharing
+5. [**Telemetry**](docs/telemetry-middleware.md) - OpenTelemetry tracing for distributed systems (optional)
+6. [**Logger**](docs/logger-middleware.md) - Logs all HTTP requests with method, path, status, and duration
 
-### Built-in Middleware
-
-#### TraceID Middleware
-
-Automatically generates or extracts trace IDs from the `X-Trace-Id` header:
-
-```go
-import "github.com/edaniel30/http-platform-go/middleware"
-
-// Get trace ID in handler
-traceID := middleware.GetTraceID(c)
-```
-
-#### Custom Middleware
-
-Add custom middleware using the `Use` method:
-
-```go
-platform.Use(func(c *gin.Context) {
-    // Pre-processing
-    start := time.Now()
-
-    c.Next()
-
-    // Post-processing
-    duration := time.Since(start)
-    log.Printf("Request took %v", duration)
-})
-```
-
-#### Error Handler Middleware
-
-The platform provides a comprehensive error handling middleware that automatically converts errors into structured JSON responses and logs them with request context.
-
-**Features:**
-- Automatic error logging with structured fields (method, path, client IP, trace ID, error type, status)
-- Consistent JSON error responses
-- Panic recovery with logging
-- Validation error details
-
-**Usage:**
-
-```go
-// Get the logger from your platform config
-logger := myLogger // Your loki.Logger instance
-
-// Apply globally to all routes
-platform.Use(httpplatform.ErrorHandler(logger))
-
-// Or apply to specific routes
-platform.GET("/users/:id", httpplatform.ErrorHandler(logger), getUserHandler)
-
-// Or apply to a route group
-api := platform.Group("/api")
-api.Use(httpplatform.ErrorHandler(logger))
-```
-
-**What gets logged:**
-
-Every error automatically logs the following fields:
-- `method` - HTTP method (GET, POST, etc.)
-- `path` - Request path
-- `client_ip` - Client IP address
-- `trace_id` - Trace ID (if TraceID middleware is enabled)
-- `error` - Error message
-- `error_type` - Type of error (NotFoundError, ValidationError, etc.)
-- `status` - HTTP status code
-- Additional context depending on error type
-
-**Handled Error Types:**
-
-The middleware handles the following error types organized by category:
-
-#### Validation Errors
-
-| Error Type | HTTP Status | Description | Error Type Label |
-|------------|-------------|-------------|------------------|
-| `validator.ValidationErrors` | 400 Bad Request | Struct validation errors (required, min, max, etc.) | `ValidationError` |
-| `json.UnmarshalTypeError` | 400 Bad Request | JSON type mismatch during unmarshaling | `UnmarshalTypeError` |
-
-#### Application/Domain Errors
-
-| Error Type | HTTP Status | Description | Error Type Label |
-|------------|-------------|-------------|------------------|
-| `NotFoundError` | 404 Not Found | Resource not found | `NotFoundError` |
-| `UnauthorizedError` | 401 Unauthorized | Authentication required or failed | `UnauthorizedError` |
-| `BadRequestError` | 400 Bad Request | Invalid request data | `BadRequestError` |
-| `DomainError` | 400 Bad Request | Business logic error | `DomainError` |
-| `ConflictError` | 409 Conflict | Resource conflict (e.g., duplicate) | `ConflictError` |
-| `ExternalServiceError` | Custom Status | External service error with custom status code | `ExternalServiceError` |
-
-#### MongoDB/Database Errors
-
-| Error Type | HTTP Status | Description | Error Type Label |
-|------------|-------------|-------------|------------------|
-| `mongokit.ErrNoDocuments` | 404 Not Found | No documents found in MongoDB query | `DocumentNotFoundError` |
-| `mongokit.IsDuplicateKeyError` | 409 Conflict | MongoDB duplicate key error (E11000) | `DuplicateKeyError` |
-| `mongokit.ErrInvalidObjectID` | 400 Bad Request | Invalid ObjectID format (invalid hex string) | `InvalidObjectIDError` |
-| `mongokit.ErrClientDisconnected` | 503 Service Unavailable | MongoDB client is disconnected | `DatabaseConnectionError` |
-| `mongokit.IsTimeout` | 504 Gateway Timeout | MongoDB operation timed out | `DatabaseTimeoutError` |
-| `mongokit.IsNetworkError` | 503 Service Unavailable | MongoDB network error | `DatabaseNetworkError` |
-
-#### System Errors
-
-| Error Type | HTTP Status | Description | Error Type Label |
-|------------|-------------|-------------|------------------|
-| `panic` | 500 Internal Server Error | Recovered panic with stack trace | `N/A` |
-| Unknown errors | 500 Internal Server Error | Generic unhandled errors | `UnknownError` |
-
-**Using Domain Errors in Handlers:**
-
-```go
-import (
-    "github.com/edaniel30/http-platform-go"
-    mongokit "github.com/edaniel30/mongo-kit-go"
-)
-
-// Example 1: Using domain errors
-func getUserHandler(c *gin.Context) {
-    id := c.Param("id")
-
-    user, err := userService.GetByID(id)
-    if err != nil {
-        // Return domain error - middleware will handle it
-        c.Error(httpplatform.NewNotFoundError("User not found"))
-        return
-    }
-
-    c.JSON(http.StatusOK, user)
-}
-
-// Example 2: MongoDB errors are automatically handled
-func getUserByObjectIDHandler(c *gin.Context) {
-    idParam := c.Param("id")
-
-    // Convert string to ObjectID - middleware handles invalid format automatically
-    objectID, err := mongokit.ToObjectID(idParam)
-    if err != nil {
-        // Returns 400 Bad Request with "Invalid ObjectID format"
-        c.Error(err)
-        return
-    }
-
-    user, err := userRepo.FindByID(objectID)
-    if err != nil {
-        // Returns 404 Not Found with "Document not found" for ErrNoDocuments
-        // Returns 503 Service Unavailable for connection errors
-        // Returns 504 Gateway Timeout for timeout errors
-        c.Error(err)
-        return
-    }
-
-    c.JSON(http.StatusOK, user)
-}
-```
-
-**Error Response Format:**
-
-All errors are returned in a consistent JSON format:
-
-```json
-{
-  "message": "User not found",
-  "error": "Not Found",
-  "status": 404,
-  "cause": []
-}
-```
-
-For validation errors, the `cause` field contains detailed information:
-
-```json
-{
-  "message": "Validation error",
-  "error": "Bad Request",
-  "status": 400,
-  "cause": [
-    {
-      "field": "Email",
-      "reason": "required"
-    },
-    {
-      "field": "Age",
-      "reason": "min=18"
-    }
-  ]
-}
-```
-
-**Automatic Error Logging Example:**
-
-When an error occurs, it's automatically logged with structured context:
-
-```json
-{
-  "level": "error",
-  "message": "HTTP error",
-  "method": "GET",
-  "path": "/users/123",
-  "client_ip": "192.168.1.100",
-  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
-  "error": "User not found",
-  "error_type": "NotFoundError",
-  "status": 404
-}
-```
-
-For validation errors, additional details are included:
-
-```json
-{
-  "level": "error",
-  "message": "HTTP error",
-  "method": "POST",
-  "path": "/users",
-  "client_ip": "192.168.1.100",
-  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
-  "error": "validation failed",
-  "error_type": "ValidationError",
-  "status": 400,
-  "validation_errors": [
-    {"field": "Email", "reason": "required"},
-    {"field": "Age", "reason": "min=18"}
-  ]
-}
-```
-
-**Available Error Constructors:**
-
-```go
-// Create domain errors
-httpplatform.NewNotFoundError("Resource not found")
-httpplatform.NewUnauthorizedError("Invalid credentials")
-httpplatform.NewConflictError("Resource already exists")
-httpplatform.NewBadRequestError("Invalid input")
-httpplatform.NewDomainError("Business rule violated")
-httpplatform.NewExternalServiceError("Service unavailable", 503)
-```
-
-**Panic Recovery:**
-
-The error handler middleware automatically recovers from panics and returns a 500 error:
-
-```go
-func panicHandler(c *gin.Context) {
-    panic("something went wrong")
-    // Middleware catches this and returns:
-    // {"message": "Internal server error panic", "error": "Internal Server Error", "status": 500}
-}
-```
 
 ## Route Registration
 
@@ -648,27 +388,6 @@ admin.Use(adminAuthMiddleware())
 ```
 
 ## Architecture
-
-### Middleware Chain
-
-```
-Request
-  ↓
-TraceID Middleware (generates/extracts trace ID)
-  ↓
-CORS Middleware (handles cross-origin requests)
-  ↓
-Recovery Middleware (panic recovery with logging)
-  ↓
-Logger Middleware (request/response logging)
-  ↓
-Custom Middleware (your middleware)
-  ↓
-Handler (your route handler)
-  ↓
-Response
-```
-
 ### Project Structure
 
 ```
@@ -681,39 +400,6 @@ http-platform-go/
 ├── types.go         # Public interfaces
 └── errors.go        # Custom error types
 ```
-
-## Error Handling
-
-### Configuration and Runtime Errors
-
-The library provides custom error types for platform configuration and runtime operations:
-
-```go
-platform, err := httpplatform.New(config.DefaultConfig())
-if err != nil {
-    // Check error type
-    if configErr, ok := err.(*httpplatform.ConfigError); ok {
-        log.Printf("Configuration error: %v", configErr)
-    }
-}
-```
-
-**Platform Errors:**
-- `ConfigError` - Configuration validation errors
-- `RuntimeError` - Runtime operation errors
-- `ErrAlreadyStarted` - Platform already started
-- `ErrNotStarted` - Platform not started
-- `ErrNilLogger` - Logger not provided
-
-### HTTP Domain Errors
-
-For handling HTTP request errors in your handlers, use the **Error Handler Middleware** which provides structured error responses for common HTTP error scenarios.
-
-See the [Error Handler Middleware](#error-handler-middleware) section for detailed documentation on:
-- Available error types (NotFoundError, UnauthorizedError, ConflictError, etc.)
-- How to use domain errors in your handlers
-- Error response format
-- Validation error handling
 
 ## Dependencies
 

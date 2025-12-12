@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/edaniel30/http-platform-go/errors"
-	"github.com/edaniel30/loki-logger-go"
+	"github.com/edaniel30/http-platform-go/middleware"
 )
 
 // Config holds all configuration for the HTTP platform
@@ -27,22 +27,25 @@ type Config struct {
 	// MaxHeaderBytes controls the maximum number of bytes the server will read parsing the request header
 	MaxHeaderBytes int
 
-	// Logger is the loki logger instance (required)
-	Logger *loki.Logger
+	// Logger is the logger instance (required)
+	// Any logger that implements the middleware.Logger interface can be used
+	Logger middleware.Logger
 
 	// CORS configuration
-	AllowedOrigins   []string
-	AllowedMethods   []string
-	AllowedHeaders   []string
-	ExposedHeaders   []string
-	AllowCredentials bool
-	MaxAge           time.Duration
+	// Note: When AllowedOrigins is ["*"], AllowCredentials MUST be false (CORS spec requirement)
+	// To use credentials, specify explicit origins like ["https://example.com", "https://app.example.com"]
+	AllowedOrigins   []string // Origins allowed to access the API (e.g., ["*"], ["https://example.com"])
+	AllowedMethods   []string // HTTP methods allowed (e.g., ["GET", "POST"])
+	AllowedHeaders   []string // Request headers allowed (e.g., ["Content-Type", "Authorization"])
+	ExposedHeaders   []string // Response headers exposed to the client (e.g., ["X-Trace-Id"])
+	AllowCredentials bool     // Allow cookies and HTTP auth (incompatible with wildcard origin)
+	MaxAge           time.Duration // How long preflight results can be cached
 
 	// Middleware toggles
-	EnableTraceID  bool
-	EnableCORS     bool
-	EnableRecovery bool
-	EnableLogger   bool
+	EnableTraceID            bool
+	EnableCORS               bool
+	EnableLogger             bool
+	EnableContextCancellation bool // Detects and handles client disconnections early
 
 	// BasePath is the base path for all routes (e.g., "/api/v1")
 	BasePath string
@@ -74,13 +77,13 @@ func DefaultConfig() Config {
 		AllowedMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"},
 		AllowedHeaders:     []string{"*"},
 		ExposedHeaders:     []string{"Content-Length", "X-Trace-Id"},
-		AllowCredentials:   true,
-		MaxAge:             12 * time.Hour,
-		EnableTraceID:      true,
-		EnableCORS:         true,
-		EnableRecovery:     true,
-		EnableLogger:       true,
-		BasePath:           "",
+		AllowCredentials:   false, // Must be false when using wildcard origin "*"
+		MaxAge:                   12 * time.Hour,
+		EnableTraceID:            true,
+		EnableCORS:               true,
+		EnableLogger:             true,
+		EnableContextCancellation: true, // Recommended to avoid wasting resources on cancelled requests
+		BasePath:                  "",
 		TrustedProxies:     nil,
 		EnableTelemetry:    false,
 		ServiceName:        "http-platform-service",
@@ -116,6 +119,12 @@ func (c *Config) Validate() error {
 		return errors.NewConfigError("idleTimeout must be positive")
 	}
 
+	// Validate CORS configuration
+	// CORS spec: wildcard origin "*" cannot be used with credentials
+	if c.EnableCORS && len(c.AllowedOrigins) == 1 && c.AllowedOrigins[0] == "*" && c.AllowCredentials {
+		return errors.NewConfigError("CORS: AllowCredentials cannot be true when AllowedOrigins is [\"*\"]. Either set AllowCredentials to false or specify explicit origins")
+	}
+
 	return nil
 }
 
@@ -131,7 +140,7 @@ func WithMode(mode string) Option {
 	}
 }
 
-func WithLogger(logger *loki.Logger) Option {
+func WithLogger(logger middleware.Logger) Option {
 	return func(c *Config) {
 		c.Logger = logger
 	}
@@ -209,15 +218,15 @@ func WithoutCORS() Option {
 	}
 }
 
-func WithoutRecovery() Option {
-	return func(c *Config) {
-		c.EnableRecovery = false
-	}
-}
-
 func WithoutLogger() Option {
 	return func(c *Config) {
 		c.EnableLogger = false
+	}
+}
+
+func WithoutContextCancellation() Option {
+	return func(c *Config) {
+		c.EnableContextCancellation = false
 	}
 }
 
