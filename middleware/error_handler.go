@@ -202,14 +202,14 @@ func handleBasicError(ctx *gin.Context, err error, logger Logger) {
 		} else if errors.Is(err, io.ErrUnexpectedEOF) {
 			errorType = "IncompleteBody"
 			apiErr = NewApiError("Request body is incomplete", http.StatusBadRequest)
-		} else if err == context.Canceled {
+		} else if errors.Is(err, context.Canceled) {
 			// Check for context cancellation errors
 			errorType = "RequestCanceled"
 			// 499 is nginx's non-standard status code for "Client Closed Request"
 			// Since HTTP doesn't have a standard code, we use 499 or could use 408 Request Timeout
 			apiErr = NewApiError("Request was cancelled by client", 499)
 			logFields["reason"] = "context_canceled"
-		} else if err == context.DeadlineExceeded {
+		} else if errors.Is(err, context.DeadlineExceeded) {
 			errorType = "RequestTimeout"
 			apiErr = NewApiError("Request timeout exceeded", http.StatusRequestTimeout)
 			logFields["reason"] = "deadline_exceeded"

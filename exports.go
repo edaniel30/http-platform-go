@@ -152,6 +152,12 @@ var (
 	// Returns consistent JSON format: {"message": "...", "error": "...", "status": 400, "cause": [...]}
 	ErrorHandler = middleware.ErrorHandler
 
+	// BasicLogger creates a request logger middleware that logs all incoming HTTP requests.
+	// Logs include method, path, status code, duration, client IP, and trace ID (if available).
+	// Enabled by default. Apply manually to specific routes with router.Use(BasicLogger(logger)).
+	// Logs use severity based on status: INFO (2xx-3xx), WARN (4xx), ERROR (5xx).
+	BasicLogger = middleware.BasicLogger
+
 	// ContextCancellation creates a middleware that detects client disconnections early.
 	// Enabled by default via cfg.EnableContextCancellation. Use this directly for specific routes only.
 	ContextCancellation = middleware.ContextCancellation
