@@ -13,30 +13,28 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-// TelemetryManager manages the OpenTelemetry lifecycle
-type TelemetryManager struct {
+// TelemetryManager manages the OpenTelemetry lifecycle.
+type Manager struct {
 	tp       *sdktrace.TracerProvider
 	shutdown func(context.Context) error
 }
 
-// Config holds telemetry configuration
-type Config struct {
-	ServiceName    string
-	ServiceVersion string
-	Environment    string
-	OTLPEndpoint   string
-	SampleAll      bool
-}
-
-// Init initializes OpenTelemetry with OTLP exporter to Datadog Agent
-// Returns a TelemetryManager that should be shut down on application exit
-func Init(ctx context.Context, cfg Config) (*TelemetryManager, error) {
+// InitTelemetry initializes OpenTelemetry with OTLP exporter to Datadog Agent.
+// Returns a TelemetryManager that should be shut down on application exit.
+//
+// Parameters:
+//   - serviceName: Name of the service for tracing
+//   - serviceVersion: Version of the service
+//   - environment: Deployment environment (e.g., "production", "development")
+//   - otlpEndpoint: OTLP endpoint (e.g., "localhost:4318" for Datadog Agent)
+//   - sampleAll: If true, samples all traces; if false, samples 10% of traces
+func InitTelemetry(ctx context.Context, serviceName, serviceVersion, environment, otlpEndpoint string, sampleAll bool) (*Manager, error) {
 	// Create resource with service information
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
-			semconv.ServiceNameKey.String(cfg.ServiceName),
-			semconv.ServiceVersionKey.String(cfg.ServiceVersion),
-			semconv.DeploymentEnvironmentKey.String(cfg.Environment),
+			semconv.ServiceNameKey.String(serviceName),
+			semconv.ServiceVersionKey.String(serviceVersion),
+			semconv.DeploymentEnvironmentKey.String(environment),
 		),
 	)
 	if err != nil {
@@ -45,7 +43,7 @@ func Init(ctx context.Context, cfg Config) (*TelemetryManager, error) {
 
 	// Create OTLP HTTP exporter to Datadog Agent
 	exporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
+		otlptracehttp.WithEndpoint(otlpEndpoint),
 		otlptracehttp.WithInsecure(), // Agent is typically local, no TLS needed
 	)
 	if err != nil {
@@ -54,7 +52,7 @@ func Init(ctx context.Context, cfg Config) (*TelemetryManager, error) {
 
 	// Determine sampler
 	var sampler sdktrace.Sampler
-	if cfg.SampleAll {
+	if sampleAll {
 		sampler = sdktrace.AlwaysSample()
 	} else {
 		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.1)) // Sample 10% by default
@@ -77,14 +75,14 @@ func Init(ctx context.Context, cfg Config) (*TelemetryManager, error) {
 		propagation.Baggage{},
 	))
 
-	return &TelemetryManager{
+	return &Manager{
 		tp:       tp,
 		shutdown: tp.Shutdown,
 	}, nil
 }
 
-// Shutdown gracefully shuts down the telemetry provider
-func (tm *TelemetryManager) Shutdown(ctx context.Context) error {
+// Shutdown gracefully shuts down the telemetry provider.
+func (tm *Manager) Shutdown(ctx context.Context) error {
 	if tm.shutdown != nil {
 		return tm.shutdown(ctx)
 	}

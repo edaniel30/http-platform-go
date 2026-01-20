@@ -7,7 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CORSConfig holds CORS configuration
+// CORSConfig holds CORS configuration.
+// This is a re-export to avoid forcing users to import the main package for middleware configuration.
 type CORSConfig struct {
 	AllowedOrigins   []string
 	AllowedMethods   []string
@@ -17,14 +18,16 @@ type CORSConfig struct {
 	MaxAge           time.Duration
 }
 
+// IsWildcardOrigin checks if the origins list contains only the wildcard "*"
+func IsWildcardOrigin(origins []string) bool {
+	return len(origins) == 1 && origins[0] == "*"
+}
+
 // CORS creates a CORS middleware with the given configuration
 // Important: According to the CORS specification, when using wildcard origin "*",
 // credentials (cookies, HTTP auth) cannot be allowed. This middleware enforces
 // this requirement by automatically setting AllowCredentials to false when "*" is used.
 func CORS(cfg CORSConfig) gin.HandlerFunc {
-	// Check if wildcard is requested
-	allowAllOrigins := len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*"
-
 	config := cors.Config{
 		AllowMethods:     cfg.AllowedMethods,
 		AllowHeaders:     cfg.AllowedHeaders,
@@ -33,7 +36,7 @@ func CORS(cfg CORSConfig) gin.HandlerFunc {
 		MaxAge:           cfg.MaxAge,
 	}
 
-	if allowAllOrigins {
+	if IsWildcardOrigin(cfg.AllowedOrigins) {
 		config.AllowAllOrigins = true
 		// CORS spec requirement: credentials cannot be used with wildcard origin
 		// This is enforced regardless of cfg.AllowCredentials value

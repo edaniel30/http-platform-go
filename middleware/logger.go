@@ -10,6 +10,19 @@ import (
 // Fields represents a map of structured log fields
 type Fields map[string]any
 
+// addBaseRequestFields adds standard request metadata to log fields
+// This includes: client_ip, method, path, and trace_id (if available)
+func addBaseRequestFields(fields Fields, c *gin.Context) {
+	fields["client_ip"] = c.ClientIP()
+	fields["method"] = c.Request.Method
+	fields["path"] = c.Request.URL.Path
+
+	// Add trace ID if available
+	if traceID := GetTraceID(c); traceID != "" {
+		fields["trace_id"] = traceID
+	}
+}
+
 // Logger is the interface that any logger implementation must satisfy
 // This allows the platform to be agnostic about the logging implementation.
 //
@@ -64,22 +77,18 @@ func BasicLogger(logger Logger) gin.HandlerFunc {
 
 		// Build log fields
 		fields := Fields{
-			"method":      c.Request.Method,
 			"path":        path,
 			"status":      c.Writer.Status(),
 			"duration":    duration.String(),
 			"duration_ms": duration.Milliseconds(),
-			"client_ip":   c.ClientIP(),
 		}
+
+		// Add base request metadata (client_ip, method, path, trace_id)
+		addBaseRequestFields(fields, c)
 
 		// Add query params if present
 		if raw != "" {
 			fields["query"] = raw
-		}
-
-		// Add trace ID if available
-		if traceID := GetTraceID(c); traceID != "" {
-			fields["trace_id"] = traceID
 		}
 
 		// Add error if present

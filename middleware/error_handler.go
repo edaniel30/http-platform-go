@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	platformErrors "github.com/edaniel30/http-platform-go/errors"
+	"github.com/edaniel30/http-platform-go/internal/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
+
+const contentTypeJSON = "application/json; charset=utf-8"
 
 // ApiError represents a structured API error response
 type ApiError struct {
@@ -79,17 +81,8 @@ func ErrorHandler(logger Logger) gin.HandlerFunc {
 
 // buildLogFields creates base log fields with request context and trace ID
 func buildLogFields(ctx *gin.Context) Fields {
-	logFields := Fields{
-		"client_ip": ctx.ClientIP(),
-		"method":    ctx.Request.Method,
-		"path":      ctx.Request.URL.Path,
-	}
-
-	// Add trace ID if available
-	if traceID := GetTraceID(ctx); traceID != "" {
-		logFields["trace_id"] = traceID
-	}
-
+	logFields := Fields{}
+	addBaseRequestFields(logFields, ctx)
 	return logFields
 }
 
@@ -110,117 +103,102 @@ func handlePanic(ctx *gin.Context, err any, logger Logger) {
 		logFields["stack_trace"] = string(debug.Stack())
 		logger.Error(reqCtx, "Panic recovered (non-error type)", logFields)
 		// Set Content-Type header before sending response
-		ctx.Header("Content-Type", "application/json; charset=utf-8")
+		ctx.Header("Content-Type", contentTypeJSON)
 		ctx.AbortWithStatusJSON(
 			http.StatusInternalServerError,
 			NewApiError("Internal server error panic", http.StatusInternalServerError))
 	}
 }
 
-// handleBasicError handles different types of errors and converts them to appropriate HTTP responses
-// This version only handles platform-specific errors, not database-specific errors
-func handleBasicError(ctx *gin.Context, err error, logger Logger) {
-	var apiErr *ApiError
-	var errorType string
-
-	// Build log fields with request context
-	logFields := buildLogFields(ctx)
-	logFields["error"] = err.Error()
+// mapErrorToApiError maps different error types to API errors with metadata
+// Returns: errorType, apiError, and additional log fields
+func mapErrorToApiError(err error) (string, *ApiError, Fields) {
+	additionalFields := Fields{}
 
 	switch e := err.(type) {
-	case *platformErrors.NotFoundError:
-		errorType = "NotFoundError"
-		apiErr = NewApiError(e.Error(), http.StatusNotFound)
+	case *NotFoundError:
+		return "NotFoundError", NewApiError(e.Error(), http.StatusNotFound), additionalFields
 
-	case *platformErrors.UnauthorizedError:
-		errorType = "UnauthorizedError"
-		apiErr = NewApiError(e.Error(), http.StatusUnauthorized)
+	case *UnauthorizedError:
+		return "UnauthorizedError", NewApiError(e.Error(), http.StatusUnauthorized), additionalFields
 
-	case *platformErrors.ConflictError:
-		errorType = "ConflictError"
-		apiErr = NewApiError(e.Error(), http.StatusConflict)
+	case *ConflictError:
+		return "ConflictError", NewApiError(e.Error(), http.StatusConflict), additionalFields
 
-	case *platformErrors.ExternalServiceError:
-		errorType = "ExternalServiceError"
-		apiErr = NewApiError(e.Error(), e.Status())
-		logFields["external_status"] = e.Status()
+	case *ExternalServiceError:
+		additionalFields["external_status"] = e.Status()
+		return "ExternalServiceError", NewApiError(e.Error(), e.Status()), additionalFields
 
-	case *platformErrors.BadRequestError:
-		errorType = "BadRequestError"
-		apiErr = NewApiError(e.Error(), http.StatusBadRequest)
+	case *BadRequestError:
+		return "BadRequestError", NewApiError(e.Error(), http.StatusBadRequest), additionalFields
 
-	case *platformErrors.ForbiddenError:
-		errorType = "ForbiddenError"
-		apiErr = NewApiError(e.Error(), http.StatusForbidden)
+	case *ForbiddenError:
+		return "ForbiddenError", NewApiError(e.Error(), http.StatusForbidden), additionalFields
 
-	case *platformErrors.UnprocessableEntityError:
-		errorType = "UnprocessableEntityError"
-		apiErr = NewApiError(e.Error(), http.StatusUnprocessableEntity)
+	case *UnprocessableEntityError:
+		return "UnprocessableEntityError", NewApiError(e.Error(), http.StatusUnprocessableEntity), additionalFields
 
-	case *platformErrors.TooManyRequestsError:
-		errorType = "TooManyRequestsError"
-		apiErr = NewApiError(e.Error(), http.StatusTooManyRequests)
+	case *TooManyRequestsError:
+		return "TooManyRequestsError", NewApiError(e.Error(), http.StatusTooManyRequests), additionalFields
 
-	case *platformErrors.InternalServerError:
-		errorType = "InternalServerError"
-		apiErr = NewApiError(e.Error(), http.StatusInternalServerError)
+	case *InternalServerError:
+		return "InternalServerError", NewApiError(e.Error(), http.StatusInternalServerError), additionalFields
 
-	case *platformErrors.ServiceUnavailableError:
-		errorType = "ServiceUnavailableError"
-		apiErr = NewApiError(e.Error(), http.StatusServiceUnavailable)
+	case *ServiceUnavailableError:
+		return "ServiceUnavailableError", NewApiError(e.Error(), http.StatusServiceUnavailable), additionalFields
 
 	case *json.UnmarshalTypeError:
-		errorType = "UnmarshalTypeError"
-		apiErr = NewApiError(
-			fmt.Sprintf("Invalid type for field '%s', expected %s but got %s",
-				e.Field, e.Type.String(), e.Value),
+		additionalFields["field"] = e.Field
+		additionalFields["expected_type"] = e.Type.String()
+		apiErr := NewApiError(
+			fmt.Sprintf("Invalid type for field '%s', expected %s but got %s", e.Field, e.Type.String(), e.Value),
 			http.StatusBadRequest,
 		)
-		logFields["field"] = e.Field
-		logFields["expected_type"] = e.Type.String()
+		return "UnmarshalTypeError", apiErr, additionalFields
 
 	case validator.ValidationErrors:
-		errorType = "ValidationError"
 		validationErrs := descriptiveValidationErrors(e)
-		apiErr = NewApiError("Validation error", http.StatusBadRequest, validationErrs)
-		logFields["validation_errors"] = validationErrs
+		additionalFields["validation_errors"] = validationErrs
+		return "ValidationError", NewApiError("Validation error", http.StatusBadRequest, validationErrs), additionalFields
 
 	case *json.SyntaxError:
-		errorType = "JSONSyntaxError"
-		apiErr = NewApiError(
-			fmt.Sprintf("Invalid JSON syntax at position %d", e.Offset),
-			http.StatusBadRequest,
-		)
-		logFields["offset"] = e.Offset
-		logFields["syntax_error"] = e.Error()
+		additionalFields["offset"] = e.Offset
+		additionalFields["syntax_error"] = e.Error()
+		apiErr := NewApiError(fmt.Sprintf("Invalid JSON syntax at position %d", e.Offset), http.StatusBadRequest)
+		return "JSONSyntaxError", apiErr, additionalFields
 
 	default:
-		// Check for specific error types using errors.Is
-		if errors.Is(err, io.EOF) {
-			errorType = "EmptyBody"
-			apiErr = NewApiError("Request body is empty", http.StatusBadRequest)
-		} else if errors.Is(err, io.ErrUnexpectedEOF) {
-			errorType = "IncompleteBody"
-			apiErr = NewApiError("Request body is incomplete", http.StatusBadRequest)
-		} else if errors.Is(err, context.Canceled) {
-			// Check for context cancellation errors
-			errorType = "RequestCanceled"
-			// 499 is nginx's non-standard status code for "Client Closed Request"
-			// Since HTTP doesn't have a standard code, we use 499 or could use 408 Request Timeout
-			apiErr = NewApiError("Request was cancelled by client", 499)
-			logFields["reason"] = "context_canceled"
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			errorType = "RequestTimeout"
-			apiErr = NewApiError("Request timeout exceeded", http.StatusRequestTimeout)
-			logFields["reason"] = "deadline_exceeded"
-		} else {
-			errorType = "UnknownError"
-			apiErr = NewApiError("An error occurred", http.StatusInternalServerError)
-			// Log full error for unknown errors
-			logFields["full_error"] = fmt.Sprintf("%+v", err)
-		}
+		return mapStandardError(err, additionalFields)
+	}
+}
+
+// mapStandardError handles standard library errors using errors.Is
+func mapStandardError(err error, additionalFields Fields) (string, *ApiError, Fields) {
+	if errors.Is(err, io.EOF) {
+		return "EmptyBody", NewApiError("Request body is empty", http.StatusBadRequest), additionalFields
 	}
 
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return "IncompleteBody", NewApiError("Request body is incomplete", http.StatusBadRequest), additionalFields
+	}
+
+	if errors.Is(err, context.Canceled) {
+		additionalFields["reason"] = "context_canceled"
+		return "RequestCanceled", NewApiError("Request was cancelled by client", constants.StatusClientClosedRequest), additionalFields
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		additionalFields["reason"] = "deadline_exceeded"
+		return "RequestTimeout", NewApiError("Request timeout exceeded", http.StatusRequestTimeout), additionalFields
+	}
+
+	// Unknown error
+	additionalFields["full_error"] = fmt.Sprintf("%+v", err)
+	return "UnknownError", NewApiError("An error occurred", http.StatusInternalServerError), additionalFields
+}
+
+// logAndRespondWithError logs the error and sends the API error response
+func logAndRespondWithError(ctx *gin.Context, apiErr *ApiError, errorType string, logFields Fields, logger Logger) {
 	// Add error type and status to log
 	logFields["error_type"] = errorType
 	logFields["status"] = apiErr.Status
@@ -234,8 +212,27 @@ func handleBasicError(ctx *gin.Context, err error, logger Logger) {
 	}
 
 	// Set Content-Type header before sending response
-	ctx.Header("Content-Type", "application/json; charset=utf-8")
+	ctx.Header("Content-Type", contentTypeJSON)
 	ctx.AbortWithStatusJSON(apiErr.Status, apiErr)
+}
+
+// handleBasicError handles different types of errors and converts them to appropriate HTTP responses
+// This version only handles platform-specific errors, not database-specific errors
+func handleBasicError(ctx *gin.Context, err error, logger Logger) {
+	// Build log fields with request context
+	logFields := buildLogFields(ctx)
+	logFields["error"] = err.Error()
+
+	// Map error to API error and get additional fields
+	errorType, apiErr, additionalFields := mapErrorToApiError(err)
+
+	// Merge additional fields into log fields
+	for k, v := range additionalFields {
+		logFields[k] = v
+	}
+
+	// Log and respond
+	logAndRespondWithError(ctx, apiErr, errorType, logFields, logger)
 }
 
 // descriptiveValidationErrors converts validator.ValidationErrors to a descriptive format

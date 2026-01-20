@@ -39,10 +39,8 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/edaniel30/http-platform-go/errors"
-	"github.com/edaniel30/http-platform-go/internal/adapters"
+	"github.com/edaniel30/http-platform-go/internal/constants"
 	"github.com/edaniel30/http-platform-go/internal/telemetry"
 	"github.com/edaniel30/http-platform-go/middleware"
 	"github.com/gin-gonic/gin"
@@ -52,9 +50,9 @@ import (
 // It encapsulates server lifecycle, routing, and middleware management
 type Platform struct {
 	config           Config
-	router           *adapters.GinRouter
+	router           *ginRouter
 	server           *http.Server
-	telemetryManager *telemetry.TelemetryManager
+	telemetryManager *telemetry.Manager
 	mu               sync.RWMutex
 	started          bool
 }
@@ -62,46 +60,42 @@ type Platform struct {
 // New creates a new HTTP platform with the given configuration and options
 // The configuration uses the functional options pattern for flexibility
 func New(cfg Config, opts ...Option) (*Platform, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	// Initialize telemetry if enabled
-	var tm *telemetry.TelemetryManager
-	if cfg.EnableTelemetry {
-		telemetryCfg := telemetry.Config{
-			ServiceName:    cfg.ServiceName,
-			ServiceVersion: cfg.ServiceVersion,
-			Environment:    cfg.Environment,
-			OTLPEndpoint:   cfg.OTLPEndpoint,
-			SampleAll:      cfg.TelemetrySampleAll,
-		}
-
+	var tm *telemetry.Manager
+	if cfg.Telemetry != nil {
 		ctx := context.Background()
 		var err error
-		tm, err = telemetry.Init(ctx, telemetryCfg)
+		tm, err = telemetry.InitTelemetry(
+			ctx,
+			cfg.Telemetry.ServiceName,
+			cfg.Telemetry.Version,
+			cfg.Telemetry.Environment,
+			cfg.Telemetry.OTLPEndpoint,
+			cfg.Telemetry.SampleAll,
+		)
 		if err != nil {
 			cfg.Logger.Error(ctx, "failed to initialize telemetry", middleware.Fields{"error": err})
 			// Don't fail the entire platform startup, just log the error
 			tm = nil
 		} else {
 			cfg.Logger.Info(ctx, "telemetry initialized successfully", middleware.Fields{
-				"service":  cfg.ServiceName,
-				"version":  cfg.ServiceVersion,
-				"endpoint": cfg.OTLPEndpoint,
+				"service":  cfg.Telemetry.ServiceName,
+				"version":  cfg.Telemetry.Version,
+				"endpoint": cfg.Telemetry.OTLPEndpoint,
 			})
 		}
 	}
 
-	router := adapters.NewGinRouter(cfg)
+	// Create router with configuration
+	router := newGinRouter(cfg)
 
 	p := &Platform{
 		config:           cfg,
@@ -116,14 +110,35 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 // It starts the server and blocks until context is cancelled or an error occurs
 // Graceful shutdown is handled automatically with a 5-second timeout
 func (p *Platform) Start(ctx context.Context) error {
+	if err := p.validateNotStarted(); err != nil {
+		return err
+	}
+
+	p.createHTTPServer()
+	quit := p.setupSignalHandling()
+	errChan := p.startServerAsync(ctx)
+
+	if err := p.waitForShutdownSignal(ctx, quit, errChan); err != nil {
+		return err
+	}
+
+	return p.gracefulShutdown()
+}
+
+// validateNotStarted checks if the server is already started and marks it as started
+func (p *Platform) validateNotStarted() error {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if p.started {
-		p.mu.Unlock()
-		return errors.ErrAlreadyStarted()
+		return newRuntimeError("server already started", nil)
 	}
 	p.started = true
-	p.mu.Unlock()
+	return nil
+}
 
+// createHTTPServer initializes the HTTP server with the configured settings
+func (p *Platform) createHTTPServer() {
 	addr := fmt.Sprintf(":%d", p.config.Port)
 	p.server = &http.Server{
 		Addr:           addr,
@@ -133,10 +148,17 @@ func (p *Platform) Start(ctx context.Context) error {
 		IdleTimeout:    p.config.IdleTimeout,
 		MaxHeaderBytes: p.config.MaxHeaderBytes,
 	}
+}
 
+// setupSignalHandling configures OS signal handling for graceful shutdown
+func (p *Platform) setupSignalHandling() chan os.Signal {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	return quit
+}
 
+// startServerAsync starts the HTTP server in a goroutine and returns an error channel
+func (p *Platform) startServerAsync(ctx context.Context) chan error {
 	errChan := make(chan error, 1)
 	go func() {
 		p.config.Logger.Info(ctx, "server started", middleware.Fields{
@@ -145,10 +167,14 @@ func (p *Platform) Start(ctx context.Context) error {
 		})
 
 		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errChan <- errors.NewRuntimeError("server failed to start", err)
+			errChan <- newRuntimeError("server failed to start", err)
 		}
 	}()
+	return errChan
+}
 
+// waitForShutdownSignal blocks until a shutdown signal is received or an error occurs
+func (p *Platform) waitForShutdownSignal(ctx context.Context, quit chan os.Signal, errChan chan error) error {
 	select {
 	case <-quit:
 		p.config.Logger.Info(ctx, "shutdown signal received", middleware.Fields{})
@@ -157,30 +183,40 @@ func (p *Platform) Start(ctx context.Context) error {
 	case err := <-errChan:
 		return err
 	}
+	return nil
+}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Accumulate all shutdown errors instead of returning early
+// shutdownComponents performs shutdown of server and telemetry, accumulating errors
+func (p *Platform) shutdownComponents(ctx context.Context) []error {
 	var shutdownErrors []error
 
 	// Shutdown server
-	p.config.Logger.Info(shutdownCtx, "shutting down server...", middleware.Fields{})
-	if err := p.server.Shutdown(shutdownCtx); err != nil {
-		p.config.Logger.Error(shutdownCtx, "error during server shutdown", middleware.Fields{"error": err})
-		shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("server shutdown failed", err))
+	p.config.Logger.Info(ctx, "shutting down server...", middleware.Fields{})
+	if err := p.server.Shutdown(ctx); err != nil {
+		p.config.Logger.Error(ctx, "error during server shutdown", middleware.Fields{"error": err})
+		shutdownErrors = append(shutdownErrors, newRuntimeError("server shutdown failed", err))
 	}
 
 	// Shutdown telemetry if initialized (always attempt even if server shutdown failed)
 	if p.telemetryManager != nil {
-		p.config.Logger.Info(shutdownCtx, "shutting down telemetry...", middleware.Fields{})
-		if err := p.telemetryManager.Shutdown(shutdownCtx); err != nil {
-			p.config.Logger.Error(shutdownCtx, "error shutting down telemetry", middleware.Fields{"error": err})
-			shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("telemetry shutdown failed", err))
+		p.config.Logger.Info(ctx, "shutting down telemetry...", middleware.Fields{})
+		if err := p.telemetryManager.Shutdown(ctx); err != nil {
+			p.config.Logger.Error(ctx, "error shutting down telemetry", middleware.Fields{"error": err})
+			shutdownErrors = append(shutdownErrors, newRuntimeError("telemetry shutdown failed", err))
 		} else {
-			p.config.Logger.Info(shutdownCtx, "telemetry shutdown complete", middleware.Fields{})
+			p.config.Logger.Info(ctx, "telemetry shutdown complete", middleware.Fields{})
 		}
 	}
+
+	return shutdownErrors
+}
+
+// gracefulShutdown performs a graceful shutdown of the server and telemetry
+func (p *Platform) gracefulShutdown() error {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), constants.ShutdownTimeout)
+	defer cancel()
+
+	shutdownErrors := p.shutdownComponents(shutdownCtx)
 
 	// Return accumulated errors if any
 	if len(shutdownErrors) > 0 {
@@ -211,25 +247,10 @@ func (p *Platform) Stop(ctx context.Context) error {
 	defer p.mu.Unlock()
 
 	if p.server == nil {
-		return errors.ErrNotStarted()
+		return newRuntimeError("server not started", nil)
 	}
 
-	// Accumulate all shutdown errors instead of returning early
-	var shutdownErrors []error
-
-	// Shutdown server
-	if err := p.server.Shutdown(ctx); err != nil {
-		p.config.Logger.Error(ctx, "error during server shutdown", middleware.Fields{"error": err})
-		shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("server shutdown failed", err))
-	}
-
-	// Shutdown telemetry if initialized (always attempt even if server shutdown failed)
-	if p.telemetryManager != nil {
-		if err := p.telemetryManager.Shutdown(ctx); err != nil {
-			p.config.Logger.Error(ctx, "error shutting down telemetry", middleware.Fields{"error": err})
-			shutdownErrors = append(shutdownErrors, errors.NewRuntimeError("telemetry shutdown failed", err))
-		}
-	}
+	shutdownErrors := p.shutdownComponents(ctx)
 
 	// Return accumulated errors if any
 	if len(shutdownErrors) > 0 {
@@ -284,11 +305,11 @@ func (p *Platform) HEAD(relativePath string, handlers ...gin.HandlerFunc) {
 
 // Group creates a new route group with the given prefix
 // Useful for organizing related routes under a common path
-func (p *Platform) Group(relativePath string, handlers ...gin.HandlerFunc) *adapters.GinRouterGroup {
+func (p *Platform) Group(relativePath string, handlers ...gin.HandlerFunc) *ginRouterGroup {
 	return p.router.Group(relativePath, handlers...)
 }
 
 // Router returns the underlying router for advanced usage
-func (p *Platform) Router() *adapters.GinRouter {
+func (p *Platform) Router() *ginRouter {
 	return p.router
 }
