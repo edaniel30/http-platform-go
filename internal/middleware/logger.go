@@ -2,6 +2,11 @@ package middleware
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -107,4 +112,75 @@ func BasicLogger(logger Logger) gin.HandlerFunc {
 			logger.Info(ctx, "Request completed", fields)
 		}
 	}
+}
+
+// DefaultLogger is a simple logger implementation using Go's standard log package.
+// It's used as the default logger when no custom logger is provided.
+type DefaultLogger struct {
+	logger *log.Logger
+}
+
+// NewDefaultLogger creates a new default logger that writes to stdout.
+func NewDefaultLogger() *DefaultLogger {
+	return &DefaultLogger{
+		logger: log.New(os.Stdout, "[http-platform] ", log.LstdFlags),
+	}
+}
+
+// Info logs an informational message with optional fields.
+func (l *DefaultLogger) Info(ctx context.Context, msg string, fields Fields) {
+	l.log("INFO", msg, fields)
+}
+
+// Error logs an error message with optional fields.
+func (l *DefaultLogger) Error(ctx context.Context, msg string, fields Fields) {
+	l.log("ERROR", msg, fields)
+}
+
+// Warn logs a warning message with optional fields.
+func (l *DefaultLogger) Warn(ctx context.Context, msg string, fields Fields) {
+	l.log("WARN", msg, fields)
+}
+
+// Debug logs a debug message with optional fields.
+func (l *DefaultLogger) Debug(ctx context.Context, msg string, fields Fields) {
+	l.log("DEBUG", msg, fields)
+}
+
+// Close closes the logger. Since the standard log package doesn't require cleanup,
+// this method is a no-op.
+func (l *DefaultLogger) Close() error {
+	return nil
+}
+
+// log is a helper method that formats and writes log messages.
+func (l *DefaultLogger) log(level, msg string, fields Fields) {
+	if len(fields) > 0 {
+		l.logger.Printf("%s: %s %s", level, msg, formatFields(fields))
+	} else {
+		l.logger.Printf("%s: %s", level, msg)
+	}
+}
+
+// formatFields converts Fields map to a readable key=value string format.
+func formatFields(fields Fields) string {
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build key=value pairs
+	pairs := make([]string, 0, len(fields))
+	for _, k := range keys {
+		v := fields[k]
+		pairs = append(pairs, fmt.Sprintf("%s=%v", k, v))
+	}
+
+	return strings.Join(pairs, " ")
 }

@@ -25,3 +25,5 @@ const GinModeRelease = "release"
 // GinModeTest enables test mode (minimal output)
 const GinModeTest = "test"
 
+// ContentTypeJSON is the JSON content type
+const ContentTypeJSON = "application/json; charset=utf-8"

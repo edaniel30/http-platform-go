@@ -41,8 +41,9 @@ import (
 	"syscall"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
+	"github.com/edaniel30/http-platform-go/internal/middleware"
+	"github.com/edaniel30/http-platform-go/internal/router"
 	"github.com/edaniel30/http-platform-go/internal/telemetry"
-	"github.com/edaniel30/http-platform-go/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -50,7 +51,7 @@ import (
 // It encapsulates server lifecycle, routing, and middleware management
 type Platform struct {
 	config           Config
-	router           *ginRouter
+	router           *router.GinRouter
 	server           *http.Server
 	telemetryManager *telemetry.Manager
 	mu               sync.RWMutex
@@ -95,7 +96,22 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 	}
 
 	// Create router with configuration
-	router := newGinRouter(cfg)
+	var serviceName string
+	if cfg.Telemetry != nil {
+		serviceName = cfg.Telemetry.ServiceName
+	}
+
+	router := router.NewGinRouter(router.RouterConfig{
+		Mode:                      cfg.Mode,
+		TrustedProxies:            cfg.TrustedProxies,
+		EnableTraceID:             cfg.EnableTraceID,
+		EnableLogger:              cfg.EnableLogger,
+		EnableContextCancellation: cfg.EnableContextCancellation,
+		CORS:                      cfg.CORS,
+		ServiceName:               serviceName,
+		BasePath:                  cfg.BasePath,
+		Logger:                    cfg.Logger,
+	})
 
 	p := &Platform{
 		config:           cfg,
@@ -305,11 +321,11 @@ func (p *Platform) HEAD(relativePath string, handlers ...gin.HandlerFunc) {
 
 // Group creates a new route group with the given prefix
 // Useful for organizing related routes under a common path
-func (p *Platform) Group(relativePath string, handlers ...gin.HandlerFunc) *ginRouterGroup {
+func (p *Platform) Group(relativePath string, handlers ...gin.HandlerFunc) *router.GinRouterGroup {
 	return p.router.Group(relativePath, handlers...)
 }
 
 // Router returns the underlying router for advanced usage
-func (p *Platform) Router() *ginRouter {
+func (p *Platform) Router() *router.GinRouter {
 	return p.router
 }

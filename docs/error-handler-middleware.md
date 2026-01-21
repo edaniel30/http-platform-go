@@ -79,8 +79,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 ```json
 {
     "message": "Validation error",
-    "error": "Bad Request",
     "status": 400,
+    "code": "VALIDATION_ERROR",
     "cause": [
         {"field": "Email", "reason": "required"},
         {"field": "Password", "reason": "min=8"}
@@ -115,8 +115,8 @@ All errors follow this structure:
 ```json
 {
     "message": "Human-readable error message",
-    "error": "HTTP status text",
     "status": 400,
+    "code": "ERROR_CODE",
     "cause": ["Optional array of causes"]
 }
 ```
@@ -200,12 +200,12 @@ if err != nil {
 
 **Server errors (5xx)** logged as **ERROR**:
 ```
-ERROR Server error trace_id=abc-123 status=500 error_type=InternalServerError
+ERROR Server error trace_id=abc-123 status=500 code=INTERNAL_SERVER_ERROR
 ```
 
 **Client errors (4xx)** logged as **WARN**:
 ```
-WARN Client error trace_id=abc-123 status=404 error_type=NotFoundError
+WARN Client error trace_id=abc-123 status=404 code=NOT_FOUND
 ```
 
 **Panics** logged with **stack traces**:

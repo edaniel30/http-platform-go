@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
-	"github.com/edaniel30/http-platform-go/middleware"
+	"github.com/edaniel30/http-platform-go/internal/middleware"
 )
 
 // TelemetryConfig holds OpenTelemetry configuration for distributed tracing.
@@ -34,7 +34,7 @@ type Config struct {
 
 	// Middleware configuration
 	CORS      *middleware.CORSConfig // CORS configuration (nil to disable)
-	Telemetry *TelemetryConfig        // Telemetry configuration (nil to disable)
+	Telemetry *TelemetryConfig       // Telemetry configuration (nil to disable)
 
 	// Middleware toggles
 	EnableTraceID             bool // Add X-Trace-ID header to requests/responses (default: true)
@@ -85,7 +85,7 @@ func DefaultConfig() Config {
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: constants.DefaultMaxHeaderBytes,
-		Logger:         nil, // Must be set by user
+		Logger:         middleware.NewDefaultLogger(), // Uses default stdlib logger
 		CORS: &middleware.CORSConfig{
 			AllowedOrigins:   []string{"*"},
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"},
@@ -344,10 +344,6 @@ func WithoutContextCancellation() Option {
 // Validate checks if the configuration is valid.
 // Returns a ConfigError if any required field is missing or invalid.
 func (c *Config) validate() error {
-	if c.Logger == nil {
-		return newConfigFieldError("Logger", "Logger is required")
-	}
-
 	if c.Port <= 0 || c.Port > 65535 {
 		return newConfigFieldError("Port", "Port must be between 1 and 65535")
 	}

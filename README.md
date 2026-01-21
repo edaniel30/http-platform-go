@@ -242,41 +242,38 @@ The platform provides utility functions to simplify common request processing ta
 
 ### QueryParamsToMap
 
-Extracts all query parameters and returns them as a `map[string]any`:
+Extracts all query parameters and returns them as a `map[string]string`:
 
 ```go
 func getUsersHandler(c *gin.Context) {
     // Request: GET /users?name=John&age=30&status=active&status=pending
 
     params := httpplatform.QueryParamsToMap(c)
-    // Result: map[string]any{
-    //   "name": "John",           // Single value as string
-    //   "age": "30",              // Single value as string
-    //   "status": []string{"active", "pending"}  // Multiple values as []string
+    // Result: map[string]string{
+    //   "name": "John",
+    //   "age": "30",
+    //   "status": "active"  // First value only
     // }
 
-    // Use the params in your business logic
-    name, _ := params["name"].(string)
-    age, _ := params["age"].(string)
+    // Use the params directly (type-safe, no type assertions needed)
+    name := params["name"]
+    age := params["age"]
+    status := params["status"]
 
-    // Handle multiple values
-    if statuses, ok := params["status"].([]string); ok {
-        // Process multiple status values
-        for _, status := range statuses {
-            // ...
-        }
-    }
+    // For multiple values, use c.QueryArray() or c.Request.URL.Query()
+    statuses := c.QueryArray("status")  // []string{"active", "pending"}
 }
 ```
 
 **Behavior:**
-- Single-value parameters are returned as `string`
-- Multi-value parameters are returned as `[]string`
+- All parameters are returned as `string`
+- Multi-value parameters return only the **first value**
 - Empty map if no query parameters
+- For accessing all values, use `c.QueryArray()` or `c.Request.URL.Query()`
 
 ### HeadersToMap
 
-Extracts all request headers and returns them as a `map[string]any`:
+Extracts all request headers and returns them as a `map[string]string`:
 
 ```go
 func logHeadersHandler(c *gin.Context) {
@@ -287,22 +284,20 @@ func logHeadersHandler(c *gin.Context) {
     // Authorization: Bearer token
 
     headers := httpplatform.HeadersToMap(c)
-    // Result: map[string]any{
+    // Result: map[string]string{
     //   "Content-Type": "application/json",
-    //   "Accept": []string{"application/json", "text/plain"},
+    //   "Accept": "application/json",  // First value only
     //   "X-Request-Id": "abc123",
     //   "Authorization": "Bearer token"
     // }
 
-    // Access specific headers
-    contentType, _ := headers["Content-Type"].(string)
+    // Access specific headers directly (type-safe)
+    contentType := headers["Content-Type"]
+    accept := headers["Accept"]
+    requestID := headers["X-Request-Id"]
 
-    // Handle multiple header values
-    if accepts, ok := headers["Accept"].([]string); ok {
-        for _, accept := range accepts {
-            // Process each accept type
-        }
-    }
+    // For multiple header values, use c.Request.Header directly
+    acceptHeaders := c.Request.Header["Accept"]  // []string{"application/json", "text/plain"}
 
     // Log for debugging
     logger.Info("Request headers", models.Fields{"headers": headers})
@@ -310,10 +305,11 @@ func logHeadersHandler(c *gin.Context) {
 ```
 
 **Behavior:**
-- Single-value headers are returned as `string`
-- Multi-value headers are returned as `[]string`
+- All headers are returned as `string`
+- Multi-value headers return only the **first value**
 - Header names are case-sensitive as received from the client
 - Empty map if no headers
+- For accessing all values, use `c.Request.Header` directly
 
 ## Best Practices
 
