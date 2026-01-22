@@ -104,11 +104,12 @@ func BasicLogger(logger Logger) gin.HandlerFunc {
 		// Log based on status code
 		status := c.Writer.Status()
 		ctx := c.Request.Context()
-		if status >= 500 {
+		switch {
+		case status >= 500:
 			logger.Error(ctx, "Request completed with server error", fields)
-		} else if status >= 400 {
+		case status >= 400:
 			logger.Warn(ctx, "Request completed with client error", fields)
-		} else {
+		default:
 			logger.Info(ctx, "Request completed", fields)
 		}
 	}

@@ -144,67 +144,92 @@ func mapStandardError(err error, additionalFields Fields) (*ApiError, Fields) {
 func mapErrorToApiError(err error) (*ApiError, Fields) {
 	additionalFields := Fields{}
 
-	switch e := err.(type) {
-	case *NotFoundError:
-		return NewApiError(e.Error(), http.StatusNotFound, "NotFoundError"), additionalFields
+	// Check for custom error types using errors.As to support wrapped errors
+	var notFoundErr *NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return NewApiError(notFoundErr.Error(), http.StatusNotFound, "NotFoundError"), additionalFields
+	}
 
-	case *UnauthorizedError:
-		return NewApiError(e.Error(), http.StatusUnauthorized, "UnauthorizedError"), additionalFields
+	var unauthorizedErr *UnauthorizedError
+	if errors.As(err, &unauthorizedErr) {
+		return NewApiError(unauthorizedErr.Error(), http.StatusUnauthorized, "UnauthorizedError"), additionalFields
+	}
 
-	case *ConflictError:
-		return NewApiError(e.Error(), http.StatusConflict, "ConflictError"), additionalFields
+	var conflictErr *ConflictError
+	if errors.As(err, &conflictErr) {
+		return NewApiError(conflictErr.Error(), http.StatusConflict, "ConflictError"), additionalFields
+	}
 
-	case *ExternalServiceError:
-		additionalFields["external_status"] = e.Status()
-		return NewApiError(e.Error(), e.Status(), "ExternalServiceError"), additionalFields
+	var externalErr *ExternalServiceError
+	if errors.As(err, &externalErr) {
+		additionalFields["external_status"] = externalErr.Status()
+		return NewApiError(externalErr.Error(), externalErr.Status(), "ExternalServiceError"), additionalFields
+	}
 
-	case *BadRequestError:
-		return NewApiError(e.Error(), http.StatusBadRequest, "BadRequestError"), additionalFields
+	var badRequestErr *BadRequestError
+	if errors.As(err, &badRequestErr) {
+		return NewApiError(badRequestErr.Error(), http.StatusBadRequest, "BadRequestError"), additionalFields
+	}
 
-	case *ForbiddenError:
-		return NewApiError(e.Error(), http.StatusForbidden, "ForbiddenError"), additionalFields
+	var forbiddenErr *ForbiddenError
+	if errors.As(err, &forbiddenErr) {
+		return NewApiError(forbiddenErr.Error(), http.StatusForbidden, "ForbiddenError"), additionalFields
+	}
 
-	case *UnprocessableEntityError:
-		return NewApiError(e.Error(), http.StatusUnprocessableEntity, "UnprocessableEntityError"), additionalFields
+	var unprocessableErr *UnprocessableEntityError
+	if errors.As(err, &unprocessableErr) {
+		return NewApiError(unprocessableErr.Error(), http.StatusUnprocessableEntity, "UnprocessableEntityError"), additionalFields
+	}
 
-	case *TooManyRequestsError:
-		return NewApiError(e.Error(), http.StatusTooManyRequests, "TooManyRequestsError"), additionalFields
+	var tooManyRequestsErr *TooManyRequestsError
+	if errors.As(err, &tooManyRequestsErr) {
+		return NewApiError(tooManyRequestsErr.Error(), http.StatusTooManyRequests, "TooManyRequestsError"), additionalFields
+	}
 
-	case *InternalServerError:
-		return NewApiError(e.Error(), http.StatusInternalServerError, "InternalServerError"), additionalFields
+	var internalErr *InternalServerError
+	if errors.As(err, &internalErr) {
+		return NewApiError(internalErr.Error(), http.StatusInternalServerError, "InternalServerError"), additionalFields
+	}
 
-	case *ServiceUnavailableError:
-		return NewApiError(e.Error(), http.StatusServiceUnavailable, "ServiceUnavailableError"), additionalFields
+	var serviceUnavailableErr *ServiceUnavailableError
+	if errors.As(err, &serviceUnavailableErr) {
+		return NewApiError(serviceUnavailableErr.Error(), http.StatusServiceUnavailable, "ServiceUnavailableError"), additionalFields
+	}
 
-	case *json.UnmarshalTypeError:
-		additionalFields["field"] = e.Field
-		additionalFields["expected_type"] = e.Type.String()
+	// Check for standard library and third-party errors
+	var unmarshalTypeErr *json.UnmarshalTypeError
+	if errors.As(err, &unmarshalTypeErr) {
+		additionalFields["field"] = unmarshalTypeErr.Field
+		additionalFields["expected_type"] = unmarshalTypeErr.Type.String()
 		apiErr := NewApiError(
-			fmt.Sprintf("Invalid type for field '%s', expected %s but got %s", e.Field, e.Type.String(), e.Value),
+			fmt.Sprintf("Invalid type for field '%s', expected %s but got %s", unmarshalTypeErr.Field, unmarshalTypeErr.Type.String(), unmarshalTypeErr.Value),
 			http.StatusBadRequest,
 			"UnmarshalTypeError",
 		)
 		return apiErr, additionalFields
-
-	case validator.ValidationErrors:
-		validationErrs := descriptiveValidationErrors(e)
-		additionalFields["validation_errors"] = validationErrs
-		return NewApiError("Validation error", http.StatusBadRequest, "ValidationError", validationErrs), additionalFields
-
-	case *json.SyntaxError:
-		additionalFields["offset"] = e.Offset
-		additionalFields["syntax_error"] = e.Error()
-		apiErr := NewApiError(fmt.Sprintf("Invalid JSON syntax at position %d", e.Offset), http.StatusBadRequest, "JSONSyntaxError")
-		return apiErr, additionalFields
-
-	default:
-		return mapStandardError(err, additionalFields)
 	}
+
+	var validationErrs validator.ValidationErrors
+	if errors.As(err, &validationErrs) {
+		errs := descriptiveValidationErrors(validationErrs)
+		additionalFields["validation_errors"] = errs
+		return NewApiError("Validation error", http.StatusBadRequest, "ValidationError", errs), additionalFields
+	}
+
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		additionalFields["offset"] = syntaxErr.Offset
+		additionalFields["syntax_error"] = syntaxErr.Error()
+		apiErr := NewApiError(fmt.Sprintf("Invalid JSON syntax at position %d", syntaxErr.Offset), http.StatusBadRequest, "JSONSyntaxError")
+		return apiErr, additionalFields
+	}
+
+	return mapStandardError(err, additionalFields)
 }
 
 // descriptiveValidationErrors converts validator.ValidationErrors to a descriptive format
 func descriptiveValidationErrors(validationErrs validator.ValidationErrors) []*validationError {
-	var errs []*validationError
+	errs := make([]*validationError, 0, len(validationErrs))
 	for _, fieldErr := range validationErrs {
 		tagName := fieldErr.ActualTag()
 		if fieldErr.Param() != "" {

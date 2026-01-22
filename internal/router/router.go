@@ -43,7 +43,7 @@ func NewGinRouter(cfg RouterConfig) *GinRouter {
 
 	// Set trusted proxies
 	if cfg.TrustedProxies != nil {
-		engine.SetTrustedProxies(cfg.TrustedProxies)
+		_ = engine.SetTrustedProxies(cfg.TrustedProxies)
 	}
 
 	// Apply middleware to engine first

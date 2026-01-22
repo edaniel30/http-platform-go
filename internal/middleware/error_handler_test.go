@@ -287,8 +287,8 @@ func TestValidationErrors(t *testing.T) {
 		err := validate.Struct(test)
 		require.Error(t, err)
 
-		validationErrs, ok := err.(validator.ValidationErrors)
-		require.True(t, ok)
+		var validationErrs validator.ValidationErrors
+		require.True(t, errors.As(err, &validationErrs))
 
 		apiErr, fields := mapErrorToApiError(validationErrs)
 		assert.Equal(t, 400, apiErr.Status)
@@ -304,8 +304,8 @@ func TestValidationErrors(t *testing.T) {
 		err := validate.Struct(test)
 		require.Error(t, err)
 
-		validationErrs, ok := err.(validator.ValidationErrors)
-		require.True(t, ok)
+		var validationErrs validator.ValidationErrors
+		require.True(t, errors.As(err, &validationErrs))
 
 		errs := descriptiveValidationErrors(validationErrs)
 		assert.NotEmpty(t, errs)
