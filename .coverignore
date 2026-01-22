@@ -1,0 +1,23 @@
+# Coverage Ignore Patterns
+# This file specifies packages and files that should be excluded from code coverage reports.
+# Each line represents a grep pattern to exclude from coverage analysis.
+
+# Examples - Auto-generated mocks should not be counted in coverage
+/internal/mocks
+
+# Examples - Example applications are not part of the library's testable code
+/examples
+
+# Telemetry - OpenTelemetry initialization code requires complex external dependencies
+# and infrastructure setup (OTLP endpoints, trace collectors, etc.) that are not
+# suitable for unit testing. This code is tested through:
+# - Integration tests in real environments
+# - Manual testing with actual telemetry backends
+# - Production monitoring
+# Reason: Mocking OpenTelemetry components would result in tests that don't reflect
+# real behavior and add maintenance overhead without meaningful coverage value.
+/internal/telemetry
+
+# Note: Individual functions cannot be excluded using grep patterns.
+# The patterns above work at the package level only.
+# For documenting untested functions, see COVERAGE_EXCEPTIONS.md

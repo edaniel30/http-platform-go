@@ -1,26 +1,40 @@
-package adapters
+package router
 
 import (
 	"net/http"
 
-	"github.com/edaniel30/http-platform-go/middleware"
-	config "github.com/edaniel30/http-platform-go/models"
+	"github.com/edaniel30/http-platform-go/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-// GinRouter wraps gin.Engine to implement the Router interface
+// ginRouter wraps gin.Engine to provide HTTP routing capabilities.
+// This is an internal implementation that shouldn't be exported.
 type GinRouter struct {
 	engine    *gin.Engine
 	baseGroup *gin.RouterGroup // Optional base group when BasePath is configured
 }
 
-// GinRouterGroup wraps gin.RouterGroup to implement the RouterGroup interface
+// ginRouterGroup wraps gin.RouterGroup to provide route grouping capabilities.
+// This is an internal implementation that shouldn't be exported.
 type GinRouterGroup struct {
 	group *gin.RouterGroup
 }
 
-// NewGinRouter creates a new Gin router with the given configuration
-func NewGinRouter(cfg config.Config) *GinRouter {
+type RouterConfig struct {
+	Mode                      string
+	TrustedProxies            []string
+	EnableTraceID             bool
+	EnableLogger              bool
+	EnableContextCancellation bool
+	CORS                      *middleware.CORSConfig
+	ServiceName               string
+	BasePath                  string
+	Logger                    middleware.Logger
+}
+
+// newGinRouter creates a new Gin router with the given configuration.
+// It initializes the Gin engine, applies middleware in the correct order, and sets up the base path if configured.
+func NewGinRouter(cfg RouterConfig) *GinRouter {
 	// Set gin mode
 	gin.SetMode(cfg.Mode)
 
@@ -29,7 +43,7 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 
 	// Set trusted proxies
 	if cfg.TrustedProxies != nil {
-		engine.SetTrustedProxies(cfg.TrustedProxies)
+		_ = engine.SetTrustedProxies(cfg.TrustedProxies)
 	}
 
 	// Apply middleware to engine first
@@ -50,20 +64,12 @@ func NewGinRouter(cfg config.Config) *GinRouter {
 	}
 
 	// 4. CORS - handle CORS before processing requests
-	if cfg.EnableCORS {
-		corsMiddleware := middleware.CORS(middleware.CORSConfig{
-			AllowedOrigins:   cfg.AllowedOrigins,
-			AllowedMethods:   cfg.AllowedMethods,
-			AllowedHeaders:   cfg.AllowedHeaders,
-			ExposedHeaders:   cfg.ExposedHeaders,
-			AllowCredentials: cfg.AllowCredentials,
-			MaxAge:           cfg.MaxAge,
-		})
-		engine.Use(corsMiddleware)
+	if cfg.CORS != nil {
+		engine.Use(middleware.CORS(*cfg.CORS))
 	}
 
 	// 5. Telemetry middleware (traces all HTTP requests)
-	if cfg.EnableTelemetry {
+	if cfg.ServiceName != "" {
 		engine.Use(middleware.Telemetry(cfg.ServiceName))
 	}
 
@@ -87,86 +93,57 @@ func (r *GinRouter) Handler() http.Handler {
 	return r.engine
 }
 
+// getRouterGroup returns the appropriate gin.IRouter (baseGroup if set, otherwise engine)
+func (r *GinRouter) getRouterGroup() gin.IRouter {
+	if r.baseGroup != nil {
+		return r.baseGroup
+	}
+	return r.engine
+}
+
 // Use adds middleware to the router
 func (r *GinRouter) Use(middleware ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.Use(middleware...)
-	} else {
-		r.engine.Use(middleware...)
-	}
+	r.getRouterGroup().Use(middleware...)
 }
 
 // GET registers a GET route
 func (r *GinRouter) GET(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.GET(relativePath, handlers...)
-	} else {
-		r.engine.GET(relativePath, handlers...)
-	}
+	r.getRouterGroup().GET(relativePath, handlers...)
 }
 
 // POST registers a POST route
 func (r *GinRouter) POST(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.POST(relativePath, handlers...)
-	} else {
-		r.engine.POST(relativePath, handlers...)
-	}
+	r.getRouterGroup().POST(relativePath, handlers...)
 }
 
 // PUT registers a PUT route
 func (r *GinRouter) PUT(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.PUT(relativePath, handlers...)
-	} else {
-		r.engine.PUT(relativePath, handlers...)
-	}
+	r.getRouterGroup().PUT(relativePath, handlers...)
 }
 
 // DELETE registers a DELETE route
 func (r *GinRouter) DELETE(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.DELETE(relativePath, handlers...)
-	} else {
-		r.engine.DELETE(relativePath, handlers...)
-	}
+	r.getRouterGroup().DELETE(relativePath, handlers...)
 }
 
 // PATCH registers a PATCH route
 func (r *GinRouter) PATCH(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.PATCH(relativePath, handlers...)
-	} else {
-		r.engine.PATCH(relativePath, handlers...)
-	}
+	r.getRouterGroup().PATCH(relativePath, handlers...)
 }
 
 // OPTIONS registers an OPTIONS route
 func (r *GinRouter) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.OPTIONS(relativePath, handlers...)
-	} else {
-		r.engine.OPTIONS(relativePath, handlers...)
-	}
+	r.getRouterGroup().OPTIONS(relativePath, handlers...)
 }
 
 // HEAD registers a HEAD route
 func (r *GinRouter) HEAD(relativePath string, handlers ...gin.HandlerFunc) {
-	if r.baseGroup != nil {
-		r.baseGroup.HEAD(relativePath, handlers...)
-	} else {
-		r.engine.HEAD(relativePath, handlers...)
-	}
+	r.getRouterGroup().HEAD(relativePath, handlers...)
 }
 
 // Group creates a new route group with the given prefix
 func (r *GinRouter) Group(relativePath string, handlers ...gin.HandlerFunc) *GinRouterGroup {
-	var group *gin.RouterGroup
-	if r.baseGroup != nil {
-		group = r.baseGroup.Group(relativePath, handlers...)
-	} else {
-		group = r.engine.Group(relativePath, handlers...)
-	}
+	group := r.getRouterGroup().Group(relativePath, handlers...)
 	return &GinRouterGroup{group: group}
 }
 

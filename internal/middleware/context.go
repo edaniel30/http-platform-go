@@ -23,7 +23,7 @@ func ContextCancellation() gin.HandlerFunc {
 		// Check if context is already cancelled before processing
 		if err := c.Request.Context().Err(); err != nil {
 			// Context is cancelled, don't process the request
-			c.Error(err)
+			_ = c.Error(err)
 			c.Abort()
 			return
 		}
@@ -97,7 +97,7 @@ func WithTimeout(timeout time.Duration) gin.HandlerFunc {
 			return
 		case <-ctx.Done():
 			// Timeout exceeded
-			c.Error(ctx.Err())
+			_ = c.Error(ctx.Err())
 			c.Abort()
 			return
 		}
