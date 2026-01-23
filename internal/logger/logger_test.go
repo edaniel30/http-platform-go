@@ -1,4 +1,4 @@
-package middleware
+package logger
 
 import (
 	"bytes"
@@ -13,24 +13,24 @@ import (
 func TestFormatFields(t *testing.T) {
 	tests := []struct {
 		name     string
-		fields   Fields
+		fields   map[string]any
 		expected string
 	}{
 		{
 			name:     "empty fields",
-			fields:   Fields{},
+			fields:   map[string]any{},
 			expected: "",
 		},
 		{
 			name: "single field",
-			fields: Fields{
+			fields: map[string]any{
 				"key": "value",
 			},
 			expected: "key=value",
 		},
 		{
 			name: "multiple fields sorted",
-			fields: Fields{
+			fields: map[string]any{
 				"status": 200,
 				"method": "GET",
 				"path":   "/users",
@@ -39,7 +39,7 @@ func TestFormatFields(t *testing.T) {
 		},
 		{
 			name: "fields with various types",
-			fields: Fields{
+			fields: map[string]any{
 				"string": "value",
 				"int":    123,
 				"bool":   true,
@@ -49,7 +49,7 @@ func TestFormatFields(t *testing.T) {
 		},
 		{
 			name: "fields sorted alphabetically",
-			fields: Fields{
+			fields: map[string]any{
 				"zebra": "z",
 				"apple": "a",
 				"mango": "m",
@@ -60,7 +60,7 @@ func TestFormatFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatFields(tt.fields)
+			result := FormatFields(tt.fields)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -69,15 +69,13 @@ func TestFormatFields(t *testing.T) {
 func TestDefaultLogger(t *testing.T) {
 	// Create a buffer to capture log output
 	var buf bytes.Buffer
-	logger := &DefaultLogger{
-		logger: log.New(&buf, "[http-platform] ", 0), // No timestamp for easier testing
-	}
+	testLogger := NewTestLogger(log.New(&buf, "[http-platform] ", 0)) // No timestamp for easier testing
 
 	ctx := context.Background()
 
 	t.Run("Info", func(t *testing.T) {
 		buf.Reset()
-		logger.Info(ctx, "test info message", Fields{"key": "value"})
+		testLogger.Info(ctx, "test info message", map[string]any{"key": "value"})
 
 		output := buf.String()
 		assert.Contains(t, output, "INFO:")
@@ -87,7 +85,7 @@ func TestDefaultLogger(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		buf.Reset()
-		logger.Error(ctx, "test error message", Fields{"error": "something went wrong"})
+		testLogger.Error(ctx, "test error message", map[string]any{"error": "something went wrong"})
 
 		output := buf.String()
 		assert.Contains(t, output, "ERROR:")
@@ -97,7 +95,7 @@ func TestDefaultLogger(t *testing.T) {
 
 	t.Run("Warn", func(t *testing.T) {
 		buf.Reset()
-		logger.Warn(ctx, "test warning message", Fields{"status": 404})
+		testLogger.Warn(ctx, "test warning message", map[string]any{"status": 404})
 
 		output := buf.String()
 		assert.Contains(t, output, "WARN:")
@@ -107,7 +105,7 @@ func TestDefaultLogger(t *testing.T) {
 
 	t.Run("Debug", func(t *testing.T) {
 		buf.Reset()
-		logger.Debug(ctx, "test debug message", Fields{"trace_id": "abc-123"})
+		testLogger.Debug(ctx, "test debug message", map[string]any{"trace_id": "abc-123"})
 
 		output := buf.String()
 		assert.Contains(t, output, "DEBUG:")
@@ -117,7 +115,7 @@ func TestDefaultLogger(t *testing.T) {
 
 	t.Run("log without fields", func(t *testing.T) {
 		buf.Reset()
-		logger.Info(ctx, "message without fields", Fields{})
+		testLogger.Info(ctx, "message without fields", map[string]any{})
 
 		output := buf.String()
 		assert.Contains(t, output, "INFO:")
@@ -128,7 +126,7 @@ func TestDefaultLogger(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
-		err := logger.Close()
+		err := testLogger.Close()
 		assert.NoError(t, err)
 	})
 }

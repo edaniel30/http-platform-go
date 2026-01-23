@@ -47,21 +47,80 @@ ERROR: Request failed method=GET path=/api/orders status=500 duration=230ms trac
 
 ### Logger Interface
 
-Implement this interface to use your own logger:
+The `Logger` interface is defined in the public `httpplatform` package, making it easy to create custom adapters:
 
 ```go
+package httpplatform
+
 type Logger interface {
-    Info(ctx context.Context, msg string, fields Fields)
-    Error(ctx context.Context, msg string, fields Fields)
-    Warn(ctx context.Context, msg string, fields Fields)
-    Debug(ctx context.Context, msg string, fields Fields)
+    Info(ctx context.Context, msg string, fields map[string]any)
+    Error(ctx context.Context, msg string, fields map[string]any)
+    Warn(ctx context.Context, msg string, fields map[string]any)
+    Debug(ctx context.Context, msg string, fields map[string]any)
     Close() error
 }
+```
 
-type Fields map[string]any
+### Using Logrus
+
+Example adapter for Logrus:
+
+```go
+package main
+
+import (
+    "context"
+
+    "github.com/edaniel30/http-platform-go"
+    "github.com/sirupsen/logrus"
+)
+
+type LogrusAdapter struct {
+    logger *logrus.Logger
+}
+
+func NewLogrusAdapter(logger *logrus.Logger) *LogrusAdapter {
+    return &LogrusAdapter{logger: logger}
+}
+
+func (a *LogrusAdapter) Info(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.WithFields(logrus.Fields(fields)).Info(msg)
+}
+
+func (a *LogrusAdapter) Error(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.WithFields(logrus.Fields(fields)).Error(msg)
+}
+
+func (a *LogrusAdapter) Warn(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.WithFields(logrus.Fields(fields)).Warn(msg)
+}
+
+func (a *LogrusAdapter) Debug(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.WithFields(logrus.Fields(fields)).Debug(msg)
+}
+
+func (a *LogrusAdapter) Close() error {
+    return nil // Logrus doesn't need explicit closing
+}
+```
+
+Usage:
+
+```go
+logrusLogger := logrus.New()
+logrusLogger.SetFormatter(&logrus.JSONFormatter{})
+
+logger := NewLogrusAdapter(logrusLogger)
+
+platform, _ := httpplatform.New(
+    httpplatform.DefaultConfig(),
+    httpplatform.WithLogger(logger),
+)
 ```
 
 ### Using Loki Logger
+
+If the logger already implements the `httpplatform.Logger` interface:
 
 ```go
 import "github.com/edaniel30/loki-logger-go"
@@ -75,40 +134,6 @@ logger := loki.New(loki.Config{
     },
 })
 defer logger.Close()
-
-platform, _ := httpplatform.New(
-    httpplatform.DefaultConfig(),
-    httpplatform.WithLogger(logger),
-)
-```
-
-### Using Zap
-
-```go
-import "go.uber.org/zap"
-
-zapLogger, _ := zap.NewProduction()
-defer zapLogger.Sync()
-
-// Create adapter that implements Logger interface
-logger := NewZapAdapter(zapLogger)
-
-platform, _ := httpplatform.New(
-    httpplatform.DefaultConfig(),
-    httpplatform.WithLogger(logger),
-)
-```
-
-### Using Logrus
-
-```go
-import "github.com/sirupsen/logrus"
-
-logrusLogger := logrus.New()
-logrusLogger.SetFormatter(&logrus.JSONFormatter{})
-
-// Create adapter that implements Logger interface
-logger := NewLogrusAdapter(logrusLogger)
 
 platform, _ := httpplatform.New(
     httpplatform.DefaultConfig(),
@@ -177,7 +202,7 @@ logger := loki.New(config)
 defer logger.Close()
 
 // Use structured logging
-logger.Info(ctx, "User created", Fields{
+logger.Info(ctx, "User created", map[string]any{
     "user_id": user.ID,
     "email":   user.Email,
 })
@@ -195,7 +220,7 @@ platform, _ := httpplatform.New(cfg,
 // (it won't - you'll leak resources)
 
 // Don't log sensitive data
-logger.Info(ctx, "Login", Fields{
+logger.Info(ctx, "Login", map[string]any{
     "password": user.Password, // Never!
 })
 
