@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/edaniel30/http-platform-go/internal/middleware"
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +20,7 @@ func TestNewGinRouter(t *testing.T) {
 			EnableTraceID:             true,
 			EnableLogger:              true,
 			EnableContextCancellation: true,
-			Logger:                    middleware.NewDefaultLogger(),
+			Logger:                    logger.NewDefaultLogger(),
 		}
 
 		router := NewGinRouter(cfg)
@@ -46,7 +46,7 @@ func TestNewGinRouter(t *testing.T) {
 func TestGinRouterHTTPMethods(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:   gin.TestMode,
-		Logger: middleware.NewDefaultLogger(),
+		Logger: logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -101,7 +101,7 @@ func TestGinRouterHTTPMethodsWithBasePath(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:     gin.TestMode,
 		BasePath: "/api/v1",
-		Logger:   middleware.NewDefaultLogger(),
+		Logger:   logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -123,7 +123,7 @@ func TestGinRouterHTTPMethodsWithBasePath(t *testing.T) {
 func TestGinRouterGroup(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:   gin.TestMode,
-		Logger: middleware.NewDefaultLogger(),
+		Logger: logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -166,7 +166,7 @@ func TestGinRouterGroupWithBasePath(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:     gin.TestMode,
 		BasePath: "/api",
-		Logger:   middleware.NewDefaultLogger(),
+		Logger:   logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -189,7 +189,7 @@ func TestGinRouterGroupWithBasePath(t *testing.T) {
 func TestGinRouterGroupMiddleware(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:   gin.TestMode,
-		Logger: middleware.NewDefaultLogger(),
+		Logger: logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -217,7 +217,7 @@ func TestGinRouterGroupMiddleware(t *testing.T) {
 func TestGinRouterMiddleware(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:   gin.TestMode,
-		Logger: middleware.NewDefaultLogger(),
+		Logger: logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 
@@ -244,7 +244,7 @@ func TestGinRouterMiddleware(t *testing.T) {
 func TestGinRouterGroupHTTPMethods(t *testing.T) {
 	cfg := RouterConfig{
 		Mode:   gin.TestMode,
-		Logger: middleware.NewDefaultLogger(),
+		Logger: logger.NewDefaultLogger(),
 	}
 	router := NewGinRouter(cfg)
 	group := router.Group("/api")

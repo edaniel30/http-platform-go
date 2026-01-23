@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/edaniel30/http-platform-go/internal/middleware"
 )
 
@@ -20,7 +21,7 @@ type TelemetryConfig struct {
 // Use DefaultConfig() to get sensible defaults, then customize with Option functions.
 type Config struct {
 	// Required fields
-	Logger middleware.Logger // Logger instance (required, any logger that implements middleware.Logger)
+	Logger Logger // Logger instance (required, any logger that implements Logger interface)
 
 	// HTTP server settings
 	Port           int           // Port number to listen on (default: 8080)
@@ -85,7 +86,7 @@ func DefaultConfig() Config {
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: constants.DefaultMaxHeaderBytes,
-		Logger:         middleware.NewDefaultLogger(), // Uses default stdlib logger
+		Logger:         logger.NewDefaultLogger(), // Uses default stdlib logger
 		CORS: &middleware.CORSConfig{
 			AllowedOrigins:   []string{"*"},
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"},
@@ -128,12 +129,12 @@ func WithMode(mode string) Option {
 }
 
 // WithLogger sets the logger instance (required).
-// Any logger that implements the middleware.Logger interface can be used.
+// Any logger that implements the Logger interface can be used.
 //
 // Example:
 //
 //	config.WithLogger(myLogger)
-func WithLogger(logger middleware.Logger) Option {
+func WithLogger(logger Logger) Option {
 	return func(c *Config) {
 		c.Logger = logger
 	}

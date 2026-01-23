@@ -1,11 +1,25 @@
 package router
 
 import (
+	"context"
 	"net/http"
+	"time"
 
+	loggerutil "github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/edaniel30/http-platform-go/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
+
+// Logger interface is defined here to avoid import cycles.
+// Any type that implements httpplatform.Logger will automatically implement this interface
+// because they have identical method signatures.
+type Logger interface {
+	Info(ctx context.Context, msg string, fields map[string]any)
+	Error(ctx context.Context, msg string, fields map[string]any)
+	Warn(ctx context.Context, msg string, fields map[string]any)
+	Debug(ctx context.Context, msg string, fields map[string]any)
+	Close() error
+}
 
 // ginRouter wraps gin.Engine to provide HTTP routing capabilities.
 // This is an internal implementation that shouldn't be exported.
@@ -29,7 +43,7 @@ type RouterConfig struct {
 	CORS                      *middleware.CORSConfig
 	ServiceName               string
 	BasePath                  string
-	Logger                    middleware.Logger
+	Logger                    Logger
 }
 
 // newGinRouter creates a new Gin router with the given configuration.
@@ -75,7 +89,7 @@ func NewGinRouter(cfg RouterConfig) *GinRouter {
 
 	// 6. Logger - log after all processing
 	if cfg.EnableLogger {
-		engine.Use(middleware.BasicLogger(cfg.Logger))
+		engine.Use(basicLogger(cfg.Logger))
 	}
 
 	router := &GinRouter{engine: engine}
@@ -191,4 +205,55 @@ func (g *GinRouterGroup) HEAD(relativePath string, handlers ...gin.HandlerFunc) 
 func (g *GinRouterGroup) Group(relativePath string, handlers ...gin.HandlerFunc) *GinRouterGroup {
 	nestedGroup := g.group.Group(relativePath, handlers...)
 	return &GinRouterGroup{group: nestedGroup}
+}
+
+// Middleware functions
+
+// basicLogger creates a request logger middleware
+func basicLogger(logger Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Start timer
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		// Process request
+		c.Next()
+
+		// Calculate request duration
+		duration := time.Since(start)
+
+		// Build log fields
+		fields := map[string]any{
+			"path":        path,
+			"status":      c.Writer.Status(),
+			"duration":    duration.String(),
+			"duration_ms": duration.Milliseconds(),
+		}
+
+		// Add base request metadata
+		loggerutil.AddBaseRequestFields(fields, c)
+
+		// Add query params if present
+		if raw != "" {
+			fields["query"] = raw
+		}
+
+		// Add error if present
+		if len(c.Errors) > 0 {
+			fields["errors"] = c.Errors.String()
+		}
+
+		// Log based on status code
+		status := c.Writer.Status()
+		ctx := c.Request.Context()
+		switch {
+		case status >= 500:
+			logger.Error(ctx, "Request completed with server error", fields)
+		case status >= 400:
+			logger.Warn(ctx, "Request completed with client error", fields)
+		default:
+			logger.Info(ctx, "Request completed", fields)
+		}
+	}
 }

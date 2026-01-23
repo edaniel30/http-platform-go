@@ -93,7 +93,22 @@ httpplatform.WithLogger(myLogger)
 httpplatform.WithoutLogger()
 ```
 
-See [Logger Documentation](docs/LOGGER.md) for custom logger integration.
+**Creating a custom logger adapter:**
+
+The `Logger` interface is public, allowing you to create adapters for any logger:
+
+```go
+type MyLoggerAdapter struct {
+    logger *mylogger.Logger
+}
+
+func (a *MyLoggerAdapter) Info(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.Info(msg, convertFields(fields))
+}
+// ... implement Error, Warn, Debug, Close
+```
+
+See [Logger Documentation](docs/LOGGER.md) for complete examples with Zap, Logrus, and Loki.
 
 #### CORS Options
 
@@ -297,7 +312,7 @@ func logHeadersHandler(c *gin.Context) {
     acceptHeaders := c.Request.Header["Accept"]  // []string{"application/json", "text/plain"}
 
     // Log for debugging
-    logger.Info("Request headers", models.Fields{"headers": headers})
+    logger.Info("Request headers", map[string]any{"headers": headers})
 }
 ```
 

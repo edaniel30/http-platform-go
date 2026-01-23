@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ func init() {
 }
 
 func TestErrorHandler(t *testing.T) {
-	logger := NewDefaultLogger()
+	logger := logger.NewDefaultLogger()
 
 	t.Run("no errors - continues normally", func(t *testing.T) {
 		router := gin.New()
@@ -187,21 +188,21 @@ func TestMapErrorToApiError(t *testing.T) {
 
 func TestMapStandardError(t *testing.T) {
 	t.Run("io.EOF", func(t *testing.T) {
-		apiErr, _ := mapStandardError(io.EOF, Fields{})
+		apiErr, _ := mapStandardError(io.EOF, map[string]any{})
 		assert.Equal(t, 400, apiErr.Status)
 		assert.Equal(t, "EMPTY_BODY", apiErr.Code)
 		assert.Equal(t, "Request body is empty", apiErr.Message)
 	})
 
 	t.Run("io.ErrUnexpectedEOF", func(t *testing.T) {
-		apiErr, _ := mapStandardError(io.ErrUnexpectedEOF, Fields{})
+		apiErr, _ := mapStandardError(io.ErrUnexpectedEOF, map[string]any{})
 		assert.Equal(t, 400, apiErr.Status)
 		assert.Equal(t, "INCOMPLETE_BODY", apiErr.Code)
 		assert.Equal(t, "Request body is incomplete", apiErr.Message)
 	})
 
 	t.Run("context.Canceled", func(t *testing.T) {
-		apiErr, fields := mapStandardError(context.Canceled, Fields{})
+		apiErr, fields := mapStandardError(context.Canceled, map[string]any{})
 		assert.Equal(t, constants.StatusClientClosedRequest, apiErr.Status)
 		assert.Equal(t, "REQUEST_CANCELED", apiErr.Code)
 		assert.Equal(t, "Request was cancelled by client", apiErr.Message)
@@ -209,7 +210,7 @@ func TestMapStandardError(t *testing.T) {
 	})
 
 	t.Run("context.DeadlineExceeded", func(t *testing.T) {
-		apiErr, fields := mapStandardError(context.DeadlineExceeded, Fields{})
+		apiErr, fields := mapStandardError(context.DeadlineExceeded, map[string]any{})
 		assert.Equal(t, 408, apiErr.Status)
 		assert.Equal(t, "REQUEST_TIMEOUT", apiErr.Code)
 		assert.Equal(t, "Request timeout exceeded", apiErr.Message)
@@ -219,13 +220,13 @@ func TestMapStandardError(t *testing.T) {
 	t.Run("wrapped context.Canceled", func(t *testing.T) {
 		wrappedErr := errors.New("wrapped: " + context.Canceled.Error())
 		wrappedErr = errors.Join(wrappedErr, context.Canceled)
-		apiErr, _ := mapStandardError(wrappedErr, Fields{})
+		apiErr, _ := mapStandardError(wrappedErr, map[string]any{})
 		assert.Equal(t, constants.StatusClientClosedRequest, apiErr.Status)
 	})
 
 	t.Run("unknown error", func(t *testing.T) {
 		unknownErr := errors.New("some random error")
-		apiErr, fields := mapStandardError(unknownErr, Fields{})
+		apiErr, fields := mapStandardError(unknownErr, map[string]any{})
 		assert.Equal(t, 500, apiErr.Status)
 		assert.Equal(t, "UNKNOWN", apiErr.Code)
 		assert.Equal(t, "An error occurred", apiErr.Message)

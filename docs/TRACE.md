@@ -50,7 +50,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
     traceID := httpplatform.GetTraceID(c)
 
     // Use in logs
-    h.logger.Info("Creating user", Fields{
+    h.logger.Info("Creating user", map[string]any{
         "trace_id": traceID,
         "username": username,
     })
@@ -68,14 +68,14 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) ProcessOrder(c *gin.Context) {
     traceID := httpplatform.GetTraceID(c)
 
-    h.logger.Info("Processing order", Fields{
+    h.logger.Info("Processing order", map[string]any{
         "trace_id": traceID,
         "order_id": orderID,
     })
 
     result, err := h.service.Process(orderID)
     if err != nil {
-        h.logger.Error("Failed", Fields{
+        h.logger.Error("Failed", map[string]any{
             "trace_id": traceID,
             "error": err,
         })
@@ -193,7 +193,7 @@ platform, _ := httpplatform.New(cfg,
 
 ```go
 // Always include trace ID in logs
-h.logger.Info("Event occurred", Fields{
+h.logger.Info("Event occurred", map[string]any{
     "trace_id": httpplatform.GetTraceID(c),
     "user_id": userID,
 })
@@ -215,7 +215,7 @@ query := fmt.Sprintf("/* trace_id: %s */ %s", traceID, baseQuery)
 
 ```go
 // Don't log without trace ID
-h.logger.Info("Event occurred", Fields{
+h.logger.Info("Event occurred", map[string]any{
     "user_id": userID,  // Missing trace_id
 })
 

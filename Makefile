@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-coverage test-coverage-html test-race setup clean
+.PHONY: test test-unit test-coverage test-coverage-html test-race setup clean pre-commit
 
 COVERAGE_THRESHOLD=80
 COVERAGE_FILE=coverage.out
@@ -68,6 +68,10 @@ setup:
 	@echo "Installing pre-commit hooks..."
 	@pre-commit install
 	@echo "Setup complete!"
+
+pre-commit:
+	@echo "Running pre-commit checks on all files..."
+	@pre-commit run --all-files
 
 clean:
 	@rm -f $(COVERAGE_FILE) coverage.html
