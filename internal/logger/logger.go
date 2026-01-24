@@ -126,4 +126,3 @@ func AddBaseRequestFields(fields map[string]any, c *gin.Context) {
 		}
 	}
 }
-

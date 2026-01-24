@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/edaniel30/http-platform-go/internal/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,7 +62,7 @@ func TestConfigOptions(t *testing.T) {
 		},
 		{
 			name:   "WithLogger",
-			option: WithLogger(NewDefaultLogger()),
+			option: WithLogger(logger.NewDefaultLogger()),
 			verify: func(t *testing.T, c *Config) {
 				assert.NotNil(t, c.Logger)
 			},
@@ -220,7 +221,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "Port must be between 1 and 65535",
@@ -233,7 +234,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "Port must be between 1 and 65535",
@@ -246,7 +247,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "Port must be between 1 and 65535",
@@ -259,7 +260,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "Mode must be 'debug', 'release', or 'test'",
@@ -272,7 +273,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  0,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "ReadTimeout must be positive",
@@ -285,7 +286,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 0,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "WriteTimeout must be positive",
@@ -298,7 +299,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  0,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 			},
 			wantError: true,
 			errorMsg:  "IdleTimeout must be positive",
@@ -311,7 +312,7 @@ func TestConfigValidate(t *testing.T) {
 				ReadTimeout:  30 * time.Second,
 				WriteTimeout: 30 * time.Second,
 				IdleTimeout:  60 * time.Second,
-				Logger:       NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 				CORS: &middleware.CORSConfig{
 					AllowedOrigins:   []string{"*"},
 					AllowCredentials: true,
