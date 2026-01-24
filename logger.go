@@ -2,8 +2,6 @@ package httpplatform
 
 import (
 	"context"
-
-	"github.com/edaniel30/http-platform-go/internal/logger"
 )
 
 // Logger is the interface that any logger implementation must satisfy.
@@ -51,19 +49,4 @@ type Logger interface {
 	// not by the platform. Use defer logger.Close() after creating the logger.
 	// Returns an error if the logger fails to close or flush properly.
 	Close() error
-}
-
-// NewDefaultLogger creates a new default logger that writes to stdout.
-// This is a simple logger implementation using Go's standard log package.
-// It's used as the default logger when no custom logger is provided.
-//
-// Example:
-//
-//	logger := httpplatform.NewDefaultLogger()
-//	defer logger.Close()
-//
-//	cfg := httpplatform.DefaultConfig()
-//	platform, _ := httpplatform.New(cfg, httpplatform.WithLogger(logger))
-func NewDefaultLogger() Logger {
-	return logger.NewDefaultLogger()
 }
