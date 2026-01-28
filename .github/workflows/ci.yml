@@ -1,13 +1,11 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
 env:
-  GO_VERSION: "1.25.5"
+  GO_VERSION: "1.25.6"
   COVERAGE_THRESHOLD: 80
 
 jobs:
