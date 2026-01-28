@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +34,7 @@ func TestContextCancellation(t *testing.T) {
 
 	t.Run("aborts when context is already cancelled", func(t *testing.T) {
 		router := gin.New()
-		logger := NewDefaultLogger()
+		logger := logger.NewDefaultLogger()
 		router.Use(ErrorHandler(logger))
 		router.Use(ContextCancellation())
 
@@ -161,7 +162,7 @@ func TestWithTimeout(t *testing.T) {
 
 	t.Run("aborts on timeout", func(t *testing.T) {
 		router := gin.New()
-		logger := NewDefaultLogger()
+		logger := logger.NewDefaultLogger()
 		router.Use(ErrorHandler(logger))
 
 		router.GET("/test", WithTimeout(10*time.Millisecond), func(c *gin.Context) {

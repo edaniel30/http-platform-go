@@ -3,6 +3,7 @@ package httpplatform
 import (
 	"testing"
 
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/edaniel30/http-platform-go/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("successful creation with custom logger", func(t *testing.T) {
-		customLogger := middleware.NewDefaultLogger()
+		customLogger := logger.NewDefaultLogger()
 
 		platform, err := New(
 			DefaultConfig(),
@@ -128,7 +129,7 @@ func TestNewValidationError(t *testing.T) {
 			config: Config{
 				Port:         0,
 				Mode:         "debug",
-				Logger:       middleware.NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 				ReadTimeout:  30,
 				WriteTimeout: 30,
 				IdleTimeout:  60,
@@ -140,7 +141,7 @@ func TestNewValidationError(t *testing.T) {
 			config: Config{
 				Port:         8080,
 				Mode:         "invalid",
-				Logger:       middleware.NewDefaultLogger(),
+				Logger:       logger.NewDefaultLogger(),
 				ReadTimeout:  30,
 				WriteTimeout: 30,
 				IdleTimeout:  60,

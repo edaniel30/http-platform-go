@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 
 	"github.com/edaniel30/http-platform-go/internal/constants"
+	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -25,7 +26,7 @@ import (
 // - Logs errors with appropriate severity levels and structured fields
 //
 // For more advanced error handling (e.g., database-specific errors), implement a custom error handler in your application
-func ErrorHandler(logger Logger) gin.HandlerFunc {
+func ErrorHandler(logger logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Setup panic recovery
 		defer func() {
@@ -46,7 +47,7 @@ func ErrorHandler(logger Logger) gin.HandlerFunc {
 }
 
 // handlePanic handles panics and converts them to appropriate error responses
-func handlePanic(ctx *gin.Context, err any, logger Logger) {
+func handlePanic(ctx *gin.Context, err any, logger logger.Logger) {
 	// Build log fields with request context
 	logFields := buildLogFields(ctx)
 
@@ -70,15 +71,15 @@ func handlePanic(ctx *gin.Context, err any, logger Logger) {
 }
 
 // buildLogFields creates base log fields with request context and trace ID
-func buildLogFields(ctx *gin.Context) Fields {
-	logFields := Fields{}
-	addBaseRequestFields(logFields, ctx)
+func buildLogFields(ctx *gin.Context) map[string]any {
+	logFields := map[string]any{}
+	logger.AddBaseRequestFields(logFields, ctx)
 	return logFields
 }
 
 // handleBasicError handles different types of errors and converts them to appropriate HTTP responses
 // This version only handles platform-specific errors, not database-specific errors
-func handleBasicError(ctx *gin.Context, err error, logger Logger) {
+func handleBasicError(ctx *gin.Context, err error, logger logger.Logger) {
 	// Build log fields with request context
 	logFields := buildLogFields(ctx)
 	logFields["error"] = err.Error()
@@ -96,7 +97,7 @@ func handleBasicError(ctx *gin.Context, err error, logger Logger) {
 }
 
 // logAndRespondWithError logs the error and sends the API error response
-func logAndRespondWithError(ctx *gin.Context, apiErr *ApiError, logFields Fields, logger Logger) {
+func logAndRespondWithError(ctx *gin.Context, apiErr *ApiError, logFields map[string]any, logger logger.Logger) {
 	// Add error code and status to log
 	logFields["status"] = apiErr.Status
 	logFields["code"] = apiErr.Code
@@ -115,7 +116,7 @@ func logAndRespondWithError(ctx *gin.Context, apiErr *ApiError, logFields Fields
 }
 
 // mapStandardError handles standard library errors using errors.Is
-func mapStandardError(err error, additionalFields Fields) (*ApiError, Fields) {
+func mapStandardError(err error, additionalFields map[string]any) (*ApiError, map[string]any) {
 	if errors.Is(err, io.EOF) {
 		return NewApiError("Request body is empty", http.StatusBadRequest, "EmptyBody"), additionalFields
 	}
@@ -141,8 +142,8 @@ func mapStandardError(err error, additionalFields Fields) (*ApiError, Fields) {
 
 // mapErrorToApiError maps different error types to API errors with metadata
 // Returns: errorType, apiError, and additional log fields
-func mapErrorToApiError(err error) (*ApiError, Fields) {
-	additionalFields := Fields{}
+func mapErrorToApiError(err error) (*ApiError, map[string]any) {
+	additionalFields := map[string]any{}
 
 	// Check for custom error types using errors.As to support wrapped errors
 	var notFoundErr *NotFoundError

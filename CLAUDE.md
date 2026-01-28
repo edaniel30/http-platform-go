@@ -9,7 +9,7 @@
 Production-ready HTTP server platform for Go built on Gin with automatic middleware setup, distributed tracing, and graceful shutdown.
 
 **Tech Stack:**
-- Go 1.25
+- Go 1.25.6+
 - `gin-gonic/gin` - HTTP framework
 - `go.opentelemetry.io/otel` - Distributed tracing (optional)
 - `gin-contrib/cors` - CORS middleware
@@ -63,8 +63,10 @@ httpplatform/              # Public API only
 ├── platform.go           # Platform type, lifecycle methods
 ├── config.go             # Configuration + functional options
 ├── errors.go             # Public error types (ConfigError, RuntimeError)
+├── logger.go             # Logger interface (public) + NewDefaultLogger()
 ├── utils.go              # Utility functions
 └── internal/             # Implementation details (not importable)
+    ├── logger/           # Logger implementation (DefaultLogger, helpers)
     ├── middleware/       # All middleware implementations
     ├── router/           # Gin wrapper/abstraction
     ├── telemetry/        # OpenTelemetry setup
@@ -72,6 +74,11 @@ httpplatform/              # Public API only
 ```
 
 **Key Principle:** Users interact with `httpplatform` package only. Implementation details are encapsulated in `internal/`.
+
+**Logger Design:**
+- **Public API** (`logger.go`): Interface definition that users can implement
+- **Implementation** (`internal/logger/`): DefaultLogger and internal helpers
+- **Reason**: Allows users to create custom logger adapters without importing internal packages
 
 ### Middleware Chain: Fixed Execution Order
 
@@ -148,7 +155,7 @@ func (r *GinRouter) getRouterGroup() gin.IRouter {
 - Could swap Gin for another router in future
 
 ### 3. Strategy Pattern
-**From `internal/middleware/logger.go:14-20`:**
+**From `logger.go` (public API):**
 
 ```go
 type Logger interface {
@@ -158,11 +165,28 @@ type Logger interface {
     Debug(ctx context.Context, msg string, fields Fields)
     Close() error
 }
+
+// Fields type removed - use map[string]any directly  // Type alias for convenience
 ```
 
+**Location:**
+- **Public API**: `logger.go` (root package) - Interface and Fields type
+- **Implementation**: `internal/logger/logger.go` - DefaultLogger and helpers
+- **Usage**: Users can import and implement the interface directly
+
 **Implementations:**
-- `DefaultLogger` (stdlib log, stdout)
-- User can provide: Loki, Zap, Logrus, etc.
+- `DefaultLogger` (stdlib log, stdout) - via `httpplatform.NewDefaultLogger()`
+- User can provide: Loki, Zap, Logrus, etc. by implementing `httpplatform.Logger`
+
+**Example custom adapter:**
+```go
+type MyAdapter struct { logger *mylogger.Logger }
+
+func (a *MyAdapter) Info(ctx context.Context, msg string, fields map[string]any) {
+    a.logger.Info(msg, convertFields(fields))
+}
+// ... implement other methods
+```
 
 ### 4. Type-Based Error Mapping
 
@@ -653,7 +677,7 @@ Runs automatically on push to `main`/`develop`:
 
 ### Current State
 - **Version**: Check git tags for current version
-- **Go Version**: 1.25
+- **Go Version**: 1.25.6+
 - **Stability**: Production-ready
 - **Breaking Changes**: Use new major version
 
@@ -677,6 +701,8 @@ Runs automatically on push to `main`/`develop`:
 - Router logic → `internal/router/router.go`
 - Configuration → `config.go`
 - Public API → `platform.go`
+- Logger interface (public) → `logger.go`
+- Logger implementation → `internal/logger/logger.go`
 - Error types → `internal/middleware/http_errors.go`
 - Telemetry → `internal/telemetry/telemetry.go`
 
@@ -696,7 +722,8 @@ Runs automatically on push to `main`/`develop`:
 | `config.go:80-249` | Functional options + validation | Adding new options or validation rules |
 | `internal/router/router.go:68-110` | Middleware chain setup | Adding/reordering middleware |
 | `internal/middleware/error_handler.go:97-170` | Error type mapping | Adding new HTTP error types |
-| `internal/middleware/logger.go` | Logger interface + default impl | Changing logging contract |
+| `logger.go` | Logger interface (public API) | Changing logging contract (users depend on this) |
+| `internal/logger/logger.go` | DefaultLogger implementation + helpers | Internal logging implementation |
 
 ### Import Paths
 
