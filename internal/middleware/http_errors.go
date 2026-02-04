@@ -203,55 +203,5 @@ func (e *ExternalServiceError) Status() int {
 	return e.StatusCode
 }
 
-// Public constructors for HTTP domain errors
-// These are exported so users can create these errors in their handlers.
-
-// NewNotFoundError creates a new NotFoundError with the given message.
-func NewNotFoundError(msg string) error {
-	return &NotFoundError{Message: msg}
-}
-
-// NewUnauthorizedError creates a new UnauthorizedError with the given message.
-func NewUnauthorizedError(msg string) error {
-	return &UnauthorizedError{Message: msg}
-}
-
-// NewForbiddenError creates a new ForbiddenError with the given message.
-func NewForbiddenError(msg string) error {
-	return &ForbiddenError{Message: msg}
-}
-
-// NewBadRequestError creates a new BadRequestError with the given message.
-func NewBadRequestError(msg string) error {
-	return &BadRequestError{Message: msg}
-}
-
-// NewConflictError creates a new ConflictError with the given message.
-func NewConflictError(msg string) error {
-	return &ConflictError{Message: msg}
-}
-
-// NewUnprocessableEntityError creates a new UnprocessableEntityError with the given message.
-func NewUnprocessableEntityError(msg string) error {
-	return &UnprocessableEntityError{Message: msg}
-}
-
-// NewTooManyRequestsError creates a new TooManyRequestsError with the given message.
-func NewTooManyRequestsError(msg string) error {
-	return &TooManyRequestsError{Message: msg}
-}
-
-// NewInternalServerError creates a new InternalServerError with the given message.
-func NewInternalServerError(msg string) error {
-	return &InternalServerError{Message: msg}
-}
-
-// NewServiceUnavailableError creates a new ServiceUnavailableError with the given message.
-func NewServiceUnavailableError(msg string) error {
-	return &ServiceUnavailableError{Message: msg}
-}
-
-// NewExternalServiceError creates a new ExternalServiceError with the given message and status code.
-func NewExternalServiceError(msg string, status int) error {
-	return &ExternalServiceError{Message: msg, StatusCode: status}
-}
+// Note: Public constructors are now exposed via the root package (httpplatform.New*Error)
+// These error types remain internal for use by the error handler middleware.
