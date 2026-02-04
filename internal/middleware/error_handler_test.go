@@ -43,7 +43,7 @@ func TestErrorHandler(t *testing.T) {
 		router := gin.New()
 		router.Use(ErrorHandler(logger))
 		router.GET("/test", func(c *gin.Context) {
-			_ = c.Error(NewNotFoundError("resource not found"))
+			_ = c.Error(&NotFoundError{Message: "resource not found"})
 		})
 
 		w := httptest.NewRecorder()
@@ -106,63 +106,63 @@ func TestMapErrorToApiError(t *testing.T) {
 	}{
 		{
 			name:           "NotFoundError",
-			err:            NewNotFoundError("user not found"),
+			err:            &NotFoundError{Message: "user not found"},
 			expectedStatus: 404,
 			expectedCode:   "NOT_FOUND",
 			expectedMsg:    "user not found",
 		},
 		{
 			name:           "UnauthorizedError",
-			err:            NewUnauthorizedError("invalid token"),
+			err:            &UnauthorizedError{Message: "invalid token"},
 			expectedStatus: 401,
 			expectedCode:   "UNAUTHORIZED",
 			expectedMsg:    "invalid token",
 		},
 		{
 			name:           "ForbiddenError",
-			err:            NewForbiddenError("access denied"),
+			err:            &ForbiddenError{Message: "access denied"},
 			expectedStatus: 403,
 			expectedCode:   "FORBIDDEN",
 			expectedMsg:    "access denied",
 		},
 		{
 			name:           "BadRequestError",
-			err:            NewBadRequestError("invalid input"),
+			err:            &BadRequestError{Message: "invalid input"},
 			expectedStatus: 400,
 			expectedCode:   "BAD_REQUEST",
 			expectedMsg:    "invalid input",
 		},
 		{
 			name:           "ConflictError",
-			err:            NewConflictError("already exists"),
+			err:            &ConflictError{Message: "already exists"},
 			expectedStatus: 409,
 			expectedCode:   "CONFLICT",
 			expectedMsg:    "already exists",
 		},
 		{
 			name:           "UnprocessableEntityError",
-			err:            NewUnprocessableEntityError("validation failed"),
+			err:            &UnprocessableEntityError{Message: "validation failed"},
 			expectedStatus: 422,
 			expectedCode:   "UNPROCESSABLE_ENTITY",
 			expectedMsg:    "validation failed",
 		},
 		{
 			name:           "TooManyRequestsError",
-			err:            NewTooManyRequestsError("rate limit exceeded"),
+			err:            &TooManyRequestsError{Message: "rate limit exceeded"},
 			expectedStatus: 429,
 			expectedCode:   "TOO_MANY_REQUESTS",
 			expectedMsg:    "rate limit exceeded",
 		},
 		{
 			name:           "InternalServerError",
-			err:            NewInternalServerError("internal error"),
+			err:            &InternalServerError{Message: "internal error"},
 			expectedStatus: 500,
 			expectedCode:   "INTERNAL_SERVER",
 			expectedMsg:    "internal error",
 		},
 		{
 			name:           "ServiceUnavailableError",
-			err:            NewServiceUnavailableError("service down"),
+			err:            &ServiceUnavailableError{Message: "service down"},
 			expectedStatus: 503,
 			expectedCode:   "SERVICE_UNAVAILABLE",
 			expectedMsg:    "service down",

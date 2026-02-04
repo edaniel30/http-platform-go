@@ -152,7 +152,7 @@ func getUserHandler(c *gin.Context) {
 
 	// Simulate user not found
 	if userID == "999" {
-		_ = c.Error(middleware.NewNotFoundError("User not found"))
+		_ = c.Error(httpplatform.NewNotFoundError("User not found"))
 		return
 	}
 
@@ -170,7 +170,7 @@ func createUserHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		_ = c.Error(middleware.NewBadRequestError("Invalid input: " + err.Error()))
+		_ = c.Error(httpplatform.NewBadRequestError("Invalid input: " + err.Error()))
 		return
 	}
 
@@ -190,7 +190,7 @@ func updateUserHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		_ = c.Error(middleware.NewBadRequestError("Invalid input: " + err.Error()))
+		_ = c.Error(httpplatform.NewBadRequestError("Invalid input: " + err.Error()))
 		return
 	}
 
