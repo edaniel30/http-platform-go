@@ -20,16 +20,16 @@ platform, _ := httpplatform.New(httpplatform.DefaultConfig())
 
 ### Manual Checks
 
-Check for disconnection in long-running operations:
+Check for disconnection in long-running operations using Go's standard `context` API:
 
 ```go
-import "github.com/edaniel30/http-platform-go/internal/middleware"
+import "context"
 
 func ProcessLargeDataset(c *gin.Context) {
     for i, item := range dataset {
-        // Check every 100 items
-        if i%100 == 0 && middleware.IsContextCancelled(c) {
-            c.Error(context.Canceled)
+        // Check every 100 items using standard context API
+        if i%100 == 0 && c.Request.Context().Err() != nil {
+            c.Error(c.Request.Context().Err())
             return
         }
         process(item)
@@ -39,46 +39,76 @@ func ProcessLargeDataset(c *gin.Context) {
 
 ### Per-Endpoint Timeouts
 
-Override global timeout for specific endpoints:
+Create custom timeout middleware for specific endpoints using Go's `context.WithTimeout`:
 
 ```go
-import "github.com/edaniel30/http-platform-go/internal/middleware"
+import (
+    "context"
+    "time"
+    "github.com/gin-gonic/gin"
+)
 
-// 30 second timeout for reports
+// Custom timeout middleware
+func withTimeout(timeout time.Duration) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+        defer cancel()
+
+        c.Request = c.Request.WithContext(ctx)
+        c.Next()
+
+        // Check if timeout occurred
+        if ctx.Err() == context.DeadlineExceeded {
+            c.Error(ctx.Err())
+            c.Abort()
+        }
+    }
+}
+
+// Use it on specific endpoints
 platform.GET("/report",
-    middleware.WithTimeout(30*time.Second),
+    withTimeout(30*time.Second),
     handler.GenerateReport,
 )
 
-// 5 second timeout for quick operations
 platform.GET("/health",
-    middleware.WithTimeout(5*time.Second),
+    withTimeout(5*time.Second),
     handler.HealthCheck,
 )
 ```
 
 ### Error Inspection
 
-Get specific error type:
+Use Go's standard context error checking:
 
 ```go
-if err := middleware.GetContextError(c); err != nil {
-    if errors.Is(err, context.Canceled) {
-        // Client disconnected
-    } else if errors.Is(err, context.DeadlineExceeded) {
-        // Timeout exceeded
+import (
+    "context"
+    "errors"
+)
+
+func handler(c *gin.Context) {
+    if err := c.Request.Context().Err(); err != nil {
+        if errors.Is(err, context.Canceled) {
+            // Client disconnected
+        } else if errors.Is(err, context.DeadlineExceeded) {
+            // Timeout exceeded
+        }
+        c.Error(err)
+        return
     }
+    // Continue processing...
 }
 ```
 
 ## When to Use
 
-| Scenario | Function | Frequency |
-|----------|----------|-----------|
-| Large file processing | `IsContextCancelled(c)` | Every N iterations |
-| Expensive computations | `IsContextCancelled(c)` | Before each step |
-| Report generation | `WithTimeout(duration)` | Per endpoint |
-| Quick APIs | `WithTimeout(duration)` | Per endpoint |
+| Scenario | How to Check | Frequency |
+|----------|-------------|-----------|
+| Large file processing | `c.Request.Context().Err() != nil` | Every N iterations |
+| Expensive computations | `c.Request.Context().Err() != nil` | Before each step |
+| Report generation | Custom `withTimeout` middleware | Per endpoint |
+| Quick APIs | Custom `withTimeout` middleware | Per endpoint |
 
 ## Configuration
 
