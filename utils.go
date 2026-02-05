@@ -58,3 +58,23 @@ func HeadersToMap(c *gin.Context) map[string]string {
 
 	return result
 }
+
+// GetTraceID extracts the trace ID from the gin context.
+// Returns empty string if no trace ID is found.
+// The trace ID is set by the TraceID middleware when EnableTraceID is true.
+//
+// Example:
+//
+//	func MyHandler(c *gin.Context) {
+//	    traceID := httpplatform.GetTraceID(c)
+//	    log.Printf("Processing request with trace ID: %s", traceID)
+//	    c.JSON(200, gin.H{"trace_id": traceID})
+//	}
+func GetTraceID(c *gin.Context) string {
+	if traceID, exists := c.Get("trace_id"); exists {
+		if id, ok := traceID.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
