@@ -125,3 +125,39 @@ func TestHeadersToMap(t *testing.T) {
 		})
 	}
 }
+
+func TestGetTraceID(t *testing.T) {
+	t.Run("returns trace ID when present", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test", nil)
+
+		// Set trace ID in context
+		expectedTraceID := "test-trace-123"
+		c.Set("trace_id", expectedTraceID)
+
+		result := GetTraceID(c)
+		assert.Equal(t, expectedTraceID, result)
+	})
+
+	t.Run("returns empty string when trace ID not present", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test", nil)
+
+		result := GetTraceID(c)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("returns empty string when trace ID has wrong type", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test", nil)
+
+		// Set wrong type (int instead of string)
+		c.Set("trace_id", 12345)
+
+		result := GetTraceID(c)
+		assert.Equal(t, "", result)
+	})
+}

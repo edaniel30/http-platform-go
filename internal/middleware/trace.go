@@ -31,14 +31,3 @@ func TraceID() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// GetTraceID extracts the trace ID from the gin context
-// Returns empty string if no trace ID is found
-func GetTraceID(c *gin.Context) string {
-	if traceID, exists := c.Get(TraceIDKey); exists {
-		if id, ok := traceID.(string); ok {
-			return id
-		}
-	}
-	return ""
-}
