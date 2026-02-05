@@ -9,7 +9,7 @@
 Production-ready HTTP server platform for Go built on Gin with automatic middleware setup, distributed tracing, and graceful shutdown.
 
 **Tech Stack:**
-- Go 1.25.6+
+- Go 1.25.7+
 - `gin-gonic/gin` - HTTP framework
 - `go.opentelemetry.io/otel` - Distributed tracing (optional)
 - `gin-contrib/cors` - CORS middleware
@@ -677,7 +677,7 @@ Runs automatically on push to `main`/`develop`:
 
 ### Current State
 - **Version**: Check git tags for current version
-- **Go Version**: 1.25.6+
+- **Go Version**: 1.25.7+
 - **Stability**: Production-ready
 - **Breaking Changes**: Use new major version
 
