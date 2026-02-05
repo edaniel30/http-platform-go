@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/edaniel30/http-platform-go/httperrors"
 	"github.com/edaniel30/http-platform-go/internal/constants"
 	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
@@ -43,7 +44,7 @@ func TestErrorHandler(t *testing.T) {
 		router := gin.New()
 		router.Use(ErrorHandler(logger))
 		router.GET("/test", func(c *gin.Context) {
-			_ = c.Error(&NotFoundError{Message: "resource not found"})
+			_ = c.Error(&httperrors.NotFoundError{Message: "resource not found"})
 		})
 
 		w := httptest.NewRecorder()
@@ -106,70 +107,70 @@ func TestMapErrorToApiError(t *testing.T) {
 	}{
 		{
 			name:           "NotFoundError",
-			err:            &NotFoundError{Message: "user not found"},
+			err:            &httperrors.NotFoundError{Message: "user not found"},
 			expectedStatus: 404,
 			expectedCode:   "NOT_FOUND",
 			expectedMsg:    "user not found",
 		},
 		{
 			name:           "UnauthorizedError",
-			err:            &UnauthorizedError{Message: "invalid token"},
+			err:            &httperrors.UnauthorizedError{Message: "invalid token"},
 			expectedStatus: 401,
 			expectedCode:   "UNAUTHORIZED",
 			expectedMsg:    "invalid token",
 		},
 		{
 			name:           "ForbiddenError",
-			err:            &ForbiddenError{Message: "access denied"},
+			err:            &httperrors.ForbiddenError{Message: "access denied"},
 			expectedStatus: 403,
 			expectedCode:   "FORBIDDEN",
 			expectedMsg:    "access denied",
 		},
 		{
 			name:           "BadRequestError",
-			err:            &BadRequestError{Message: "invalid input"},
+			err:            &httperrors.BadRequestError{Message: "invalid input"},
 			expectedStatus: 400,
 			expectedCode:   "BAD_REQUEST",
 			expectedMsg:    "invalid input",
 		},
 		{
 			name:           "ConflictError",
-			err:            &ConflictError{Message: "already exists"},
+			err:            &httperrors.ConflictError{Message: "already exists"},
 			expectedStatus: 409,
 			expectedCode:   "CONFLICT",
 			expectedMsg:    "already exists",
 		},
 		{
 			name:           "UnprocessableEntityError",
-			err:            &UnprocessableEntityError{Message: "validation failed"},
+			err:            &httperrors.UnprocessableEntityError{Message: "validation failed"},
 			expectedStatus: 422,
 			expectedCode:   "UNPROCESSABLE_ENTITY",
 			expectedMsg:    "validation failed",
 		},
 		{
 			name:           "TooManyRequestsError",
-			err:            &TooManyRequestsError{Message: "rate limit exceeded"},
+			err:            &httperrors.TooManyRequestsError{Message: "rate limit exceeded"},
 			expectedStatus: 429,
 			expectedCode:   "TOO_MANY_REQUESTS",
 			expectedMsg:    "rate limit exceeded",
 		},
 		{
 			name:           "InternalServerError",
-			err:            &InternalServerError{Message: "internal error"},
+			err:            &httperrors.InternalServerError{Message: "internal error"},
 			expectedStatus: 500,
 			expectedCode:   "INTERNAL_SERVER",
 			expectedMsg:    "internal error",
 		},
 		{
 			name:           "ServiceUnavailableError",
-			err:            &ServiceUnavailableError{Message: "service down"},
+			err:            &httperrors.ServiceUnavailableError{Message: "service down"},
 			expectedStatus: 503,
 			expectedCode:   "SERVICE_UNAVAILABLE",
 			expectedMsg:    "service down",
 		},
 		{
 			name:           "ExternalServiceError",
-			err:            &ExternalServiceError{Message: "external failed", StatusCode: 502},
+			err:            &httperrors.ExternalServiceError{Message: "external failed", StatusCode: 502},
 			expectedStatus: 502,
 			expectedCode:   "EXTERNAL_SERVICE",
 			expectedMsg:    "external failed",

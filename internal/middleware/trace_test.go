@@ -18,7 +18,11 @@ func TestTraceID(t *testing.T) {
 
 		var capturedTraceID string
 		router.GET("/test", func(c *gin.Context) {
-			capturedTraceID = GetTraceID(c)
+			if traceID, exists := c.Get(TraceIDKey); exists {
+				if id, ok := traceID.(string); ok {
+					capturedTraceID = id
+				}
+			}
 			c.String(200, "OK")
 		})
 
@@ -42,7 +46,11 @@ func TestTraceID(t *testing.T) {
 		var capturedTraceID string
 
 		router.GET("/test", func(c *gin.Context) {
-			capturedTraceID = GetTraceID(c)
+			if traceID, exists := c.Get(TraceIDKey); exists {
+				if id, ok := traceID.(string); ok {
+					capturedTraceID = id
+				}
+			}
 			c.String(200, "OK")
 		})
 
