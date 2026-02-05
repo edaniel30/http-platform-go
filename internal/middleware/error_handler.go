@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"github.com/edaniel30/http-platform-go/httperrors"
 	"github.com/edaniel30/http-platform-go/internal/constants"
 	"github.com/edaniel30/http-platform-go/internal/logger"
 	"github.com/gin-gonic/gin"
@@ -146,53 +147,53 @@ func mapErrorToApiError(err error) (*ApiError, map[string]any) {
 	additionalFields := map[string]any{}
 
 	// Check for custom error types using errors.As to support wrapped errors
-	var notFoundErr *NotFoundError
+	var notFoundErr *httperrors.NotFoundError
 	if errors.As(err, &notFoundErr) {
 		return NewApiError(notFoundErr.Error(), http.StatusNotFound, "NotFoundError"), additionalFields
 	}
 
-	var unauthorizedErr *UnauthorizedError
+	var unauthorizedErr *httperrors.UnauthorizedError
 	if errors.As(err, &unauthorizedErr) {
 		return NewApiError(unauthorizedErr.Error(), http.StatusUnauthorized, "UnauthorizedError"), additionalFields
 	}
 
-	var conflictErr *ConflictError
+	var conflictErr *httperrors.ConflictError
 	if errors.As(err, &conflictErr) {
 		return NewApiError(conflictErr.Error(), http.StatusConflict, "ConflictError"), additionalFields
 	}
 
-	var externalErr *ExternalServiceError
+	var externalErr *httperrors.ExternalServiceError
 	if errors.As(err, &externalErr) {
 		additionalFields["external_status"] = externalErr.Status()
 		return NewApiError(externalErr.Error(), externalErr.Status(), "ExternalServiceError"), additionalFields
 	}
 
-	var badRequestErr *BadRequestError
+	var badRequestErr *httperrors.BadRequestError
 	if errors.As(err, &badRequestErr) {
 		return NewApiError(badRequestErr.Error(), http.StatusBadRequest, "BadRequestError"), additionalFields
 	}
 
-	var forbiddenErr *ForbiddenError
+	var forbiddenErr *httperrors.ForbiddenError
 	if errors.As(err, &forbiddenErr) {
 		return NewApiError(forbiddenErr.Error(), http.StatusForbidden, "ForbiddenError"), additionalFields
 	}
 
-	var unprocessableErr *UnprocessableEntityError
+	var unprocessableErr *httperrors.UnprocessableEntityError
 	if errors.As(err, &unprocessableErr) {
 		return NewApiError(unprocessableErr.Error(), http.StatusUnprocessableEntity, "UnprocessableEntityError"), additionalFields
 	}
 
-	var tooManyRequestsErr *TooManyRequestsError
+	var tooManyRequestsErr *httperrors.TooManyRequestsError
 	if errors.As(err, &tooManyRequestsErr) {
 		return NewApiError(tooManyRequestsErr.Error(), http.StatusTooManyRequests, "TooManyRequestsError"), additionalFields
 	}
 
-	var internalErr *InternalServerError
+	var internalErr *httperrors.InternalServerError
 	if errors.As(err, &internalErr) {
 		return NewApiError(internalErr.Error(), http.StatusInternalServerError, "InternalServerError"), additionalFields
 	}
 
-	var serviceUnavailableErr *ServiceUnavailableError
+	var serviceUnavailableErr *httperrors.ServiceUnavailableError
 	if errors.As(err, &serviceUnavailableErr) {
 		return NewApiError(serviceUnavailableErr.Error(), http.StatusServiceUnavailable, "ServiceUnavailableError"), additionalFields
 	}
