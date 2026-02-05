@@ -18,6 +18,7 @@ import (
 	"time"
 
 	httpplatform "github.com/edaniel30/http-platform-go"
+	"github.com/edaniel30/http-platform-go/httperrors"
 	"github.com/edaniel30/http-platform-go/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -152,7 +153,7 @@ func getUserHandler(c *gin.Context) {
 
 	// Simulate user not found
 	if userID == "999" {
-		_ = c.Error(httpplatform.NewNotFoundError("User not found"))
+		_ = c.Error(httperrors.NewNotFoundError("User not found"))
 		return
 	}
 
@@ -170,7 +171,7 @@ func createUserHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		_ = c.Error(httpplatform.NewBadRequestError("Invalid input: " + err.Error()))
+		_ = c.Error(httperrors.NewBadRequestError("Invalid input: " + err.Error()))
 		return
 	}
 
@@ -190,7 +191,7 @@ func updateUserHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		_ = c.Error(httpplatform.NewBadRequestError("Invalid input: " + err.Error()))
+		_ = c.Error(httperrors.NewBadRequestError("Invalid input: " + err.Error()))
 		return
 	}
 

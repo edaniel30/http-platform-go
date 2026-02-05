@@ -1,10 +1,8 @@
-package httpplatform
+package httperrors
 
 import (
 	"errors"
 	"testing"
-
-	"github.com/edaniel30/http-platform-go/internal/middleware"
 )
 
 func TestNewNotFoundError(t *testing.T) {
@@ -17,10 +15,10 @@ func TestNewNotFoundError(t *testing.T) {
 		t.Errorf("expected message 'resource not found', got '%s'", err.Error())
 	}
 
-	// Verify it returns the correct internal type using errors.As
-	var notFoundErr *middleware.NotFoundError
+	// Verify it returns the correct type using errors.As
+	var notFoundErr *NotFoundError
 	if !errors.As(err, &notFoundErr) {
-		t.Errorf("expected *middleware.NotFoundError, got %T", err)
+		t.Errorf("expected *httperrors.NotFoundError, got %T", err)
 	}
 }
 
@@ -34,9 +32,9 @@ func TestNewUnauthorizedError(t *testing.T) {
 		t.Errorf("expected message 'invalid credentials', got '%s'", err.Error())
 	}
 
-	var unauthorizedErr *middleware.UnauthorizedError
+	var unauthorizedErr *UnauthorizedError
 	if !errors.As(err, &unauthorizedErr) {
-		t.Errorf("expected *middleware.UnauthorizedError, got %T", err)
+		t.Errorf("expected *httperrors.UnauthorizedError, got %T", err)
 	}
 }
 
@@ -50,9 +48,9 @@ func TestNewForbiddenError(t *testing.T) {
 		t.Errorf("expected message 'insufficient permissions', got '%s'", err.Error())
 	}
 
-	var forbiddenErr *middleware.ForbiddenError
+	var forbiddenErr *ForbiddenError
 	if !errors.As(err, &forbiddenErr) {
-		t.Errorf("expected *middleware.ForbiddenError, got %T", err)
+		t.Errorf("expected *httperrors.ForbiddenError, got %T", err)
 	}
 }
 
@@ -66,9 +64,9 @@ func TestNewBadRequestError(t *testing.T) {
 		t.Errorf("expected message 'invalid email format', got '%s'", err.Error())
 	}
 
-	var badRequestErr *middleware.BadRequestError
+	var badRequestErr *BadRequestError
 	if !errors.As(err, &badRequestErr) {
-		t.Errorf("expected *middleware.BadRequestError, got %T", err)
+		t.Errorf("expected *httperrors.BadRequestError, got %T", err)
 	}
 }
 
@@ -82,9 +80,9 @@ func TestNewConflictError(t *testing.T) {
 		t.Errorf("expected message 'user already exists', got '%s'", err.Error())
 	}
 
-	var conflictErr *middleware.ConflictError
+	var conflictErr *ConflictError
 	if !errors.As(err, &conflictErr) {
-		t.Errorf("expected *middleware.ConflictError, got %T", err)
+		t.Errorf("expected *httperrors.ConflictError, got %T", err)
 	}
 }
 
@@ -98,9 +96,9 @@ func TestNewUnprocessableEntityError(t *testing.T) {
 		t.Errorf("expected message 'validation failed: age must be positive', got '%s'", err.Error())
 	}
 
-	var unprocessableErr *middleware.UnprocessableEntityError
+	var unprocessableErr *UnprocessableEntityError
 	if !errors.As(err, &unprocessableErr) {
-		t.Errorf("expected *middleware.UnprocessableEntityError, got %T", err)
+		t.Errorf("expected *httperrors.UnprocessableEntityError, got %T", err)
 	}
 }
 
@@ -114,9 +112,9 @@ func TestNewTooManyRequestsError(t *testing.T) {
 		t.Errorf("expected message 'rate limit exceeded', got '%s'", err.Error())
 	}
 
-	var tooManyReqErr *middleware.TooManyRequestsError
+	var tooManyReqErr *TooManyRequestsError
 	if !errors.As(err, &tooManyReqErr) {
-		t.Errorf("expected *middleware.TooManyRequestsError, got %T", err)
+		t.Errorf("expected *httperrors.TooManyRequestsError, got %T", err)
 	}
 }
 
@@ -130,9 +128,9 @@ func TestNewInternalServerError(t *testing.T) {
 		t.Errorf("expected message 'failed to process request', got '%s'", err.Error())
 	}
 
-	var internalErr *middleware.InternalServerError
+	var internalErr *InternalServerError
 	if !errors.As(err, &internalErr) {
-		t.Errorf("expected *middleware.InternalServerError, got %T", err)
+		t.Errorf("expected *httperrors.InternalServerError, got %T", err)
 	}
 }
 
@@ -146,9 +144,9 @@ func TestNewServiceUnavailableError(t *testing.T) {
 		t.Errorf("expected message 'service under maintenance', got '%s'", err.Error())
 	}
 
-	var serviceErr *middleware.ServiceUnavailableError
+	var serviceErr *ServiceUnavailableError
 	if !errors.As(err, &serviceErr) {
-		t.Errorf("expected *middleware.ServiceUnavailableError, got %T", err)
+		t.Errorf("expected *httperrors.ServiceUnavailableError, got %T", err)
 	}
 }
 
@@ -162,9 +160,9 @@ func TestNewExternalServiceError(t *testing.T) {
 		t.Errorf("expected message 'payment API failed', got '%s'", err.Error())
 	}
 
-	var extErr *middleware.ExternalServiceError
+	var extErr *ExternalServiceError
 	if !errors.As(err, &extErr) {
-		t.Fatalf("expected *middleware.ExternalServiceError, got %T", err)
+		t.Fatalf("expected *httperrors.ExternalServiceError, got %T", err)
 	}
 
 	if extErr.Status() != 502 {
