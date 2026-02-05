@@ -10,12 +10,12 @@ package httperrors
 //	    user, err := userService.Find(id)
 //	    if err != nil {
 //	        // Check if it's a specific error type
-//	        var notFoundErr *httperrors.NotFoundError
+//	        var notFoundErr *NotFoundError
 //	        if errors.As(err, &notFoundErr) {
 //	            c.Error(notFoundErr)
 //	            return
 //	        }
-//	        c.Error(httperrors.NewInternalServerError("unexpected error"))
+//	        c.Error(NewInternalServerError("unexpected error"))
 //	        return
 //	    }
 //	    c.JSON(200, user)
@@ -29,11 +29,11 @@ package httperrors
 //
 // Example:
 //
-//	return httperrors.NewNotFoundError("user not found")
+//	return NewNotFoundError("user not found")
 //
 // Type assertion example:
 //
-//	var notFoundErr *httperrors.NotFoundError
+//	var notFoundErr *NotFoundError
 //	if errors.As(err, &notFoundErr) {
 //	    // Handle not found case
 //	}
@@ -100,7 +100,7 @@ func NewBadRequestError(msg string) error {
 //
 // Example:
 //
-//	var conflictErr *httperrors.ConflictError
+//	var conflictErr *ConflictError
 //	if errors.As(err, &conflictErr) {
 //	    log.Info("Resource already exists", "message", conflictErr.Message)
 //	    return nil
