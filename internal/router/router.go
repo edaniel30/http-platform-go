@@ -89,7 +89,7 @@ func NewGinRouter(cfg RouterConfig) *GinRouter {
 
 	// 6. Logger - log after all processing
 	if cfg.EnableLogger {
-		engine.Use(basicLogger(cfg.Logger))
+		engine.Use(basicLogger(cfg.Logger, cfg.Mode))
 	}
 
 	router := &GinRouter{engine: engine}
@@ -210,7 +210,7 @@ func (g *GinRouterGroup) Group(relativePath string, handlers ...gin.HandlerFunc)
 // Middleware functions
 
 // basicLogger creates a request logger middleware
-func basicLogger(logger Logger) gin.HandlerFunc {
+func basicLogger(logger Logger, mode string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer
 		start := time.Now()
@@ -244,16 +244,29 @@ func basicLogger(logger Logger) gin.HandlerFunc {
 			fields["errors"] = c.Errors.String()
 		}
 
-		// Log based on status code
+		// Log based on status code and mode
 		status := c.Writer.Status()
 		ctx := c.Request.Context()
-		switch {
-		case status >= 500:
-			logger.Error(ctx, "Request completed with server error", fields)
-		case status >= 400:
-			logger.Warn(ctx, "Request completed with client error", fields)
-		default:
-			logger.Info(ctx, "Request completed", fields)
+
+		// In release mode, only log errors (4xx and 5xx)
+		if mode == gin.ReleaseMode {
+			switch {
+			case status >= 500:
+				logger.Error(ctx, "Request completed with server error", fields)
+			case status >= 400:
+				logger.Warn(ctx, "Request completed with client error", fields)
+			// Don't log successful requests in release mode
+			}
+		} else {
+			// In debug/test mode, log everything
+			switch {
+			case status >= 500:
+				logger.Error(ctx, "Request completed with server error", fields)
+			case status >= 400:
+				logger.Warn(ctx, "Request completed with client error", fields)
+			default:
+				logger.Info(ctx, "Request completed", fields)
+			}
 		}
 	}
 }
