@@ -86,11 +86,7 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 			// Don't fail the entire platform startup, just log the error
 			tm = nil
 		} else {
-			cfg.Logger.Info(ctx, "telemetry initialized successfully", map[string]any{
-				"service":  cfg.Telemetry.ServiceName,
-				"version":  cfg.Telemetry.Version,
-				"endpoint": cfg.Telemetry.OTLPEndpoint,
-			})
+			cfg.Logger.Info(ctx, "Telemetry initialized successfully", map[string]any{})
 		}
 	}
 
@@ -176,7 +172,7 @@ func (p *Platform) setupSignalHandling() chan os.Signal {
 func (p *Platform) startServerAsync(ctx context.Context) chan error {
 	errChan := make(chan error, 1)
 	go func() {
-		p.config.Logger.Info(ctx, "server started", map[string]any{
+		p.config.Logger.Info(ctx, "Server started", map[string]any{
 			"port": p.config.Port,
 			"mode": p.config.Mode,
 		})
@@ -192,9 +188,9 @@ func (p *Platform) startServerAsync(ctx context.Context) chan error {
 func (p *Platform) waitForShutdownSignal(ctx context.Context, quit chan os.Signal, errChan chan error) error {
 	select {
 	case <-quit:
-		p.config.Logger.Info(ctx, "shutdown signal received", map[string]any{})
+		p.config.Logger.Info(ctx, "Shutdown signal received", map[string]any{})
 	case <-ctx.Done():
-		p.config.Logger.Info(ctx, "context cancelled, shutting down", map[string]any{})
+		p.config.Logger.Info(ctx, "Context cancelled, shutting down", map[string]any{})
 	case err := <-errChan:
 		return err
 	}
@@ -206,20 +202,16 @@ func (p *Platform) shutdownComponents(ctx context.Context) []error {
 	var shutdownErrors []error
 
 	// Shutdown server
-	p.config.Logger.Info(ctx, "shutting down server...", map[string]any{})
 	if err := p.server.Shutdown(ctx); err != nil {
-		p.config.Logger.Error(ctx, "error during server shutdown", map[string]any{"error": err})
+		p.config.Logger.Error(ctx, "Error during server shutdown", map[string]any{"error": err})
 		shutdownErrors = append(shutdownErrors, newRuntimeError("server shutdown failed", err))
 	}
 
 	// Shutdown telemetry if initialized (always attempt even if server shutdown failed)
 	if p.telemetryManager != nil {
-		p.config.Logger.Info(ctx, "shutting down telemetry...", map[string]any{})
 		if err := p.telemetryManager.Shutdown(ctx); err != nil {
-			p.config.Logger.Error(ctx, "error shutting down telemetry", map[string]any{"error": err})
+			p.config.Logger.Error(ctx, "Error shutting down telemetry", map[string]any{"error": err})
 			shutdownErrors = append(shutdownErrors, newRuntimeError("telemetry shutdown failed", err))
-		} else {
-			p.config.Logger.Info(ctx, "telemetry shutdown complete", map[string]any{})
 		}
 	}
 
@@ -236,7 +228,7 @@ func (p *Platform) gracefulShutdown() error {
 	// Return accumulated errors if any
 	if len(shutdownErrors) > 0 {
 		// Log summary of errors
-		p.config.Logger.Error(shutdownCtx, "server stopped with errors", map[string]any{
+		p.config.Logger.Error(shutdownCtx, "Server stopped with errors", map[string]any{
 			"error_count": len(shutdownErrors),
 		})
 		// Return first error (most critical: server shutdown)
@@ -244,7 +236,7 @@ func (p *Platform) gracefulShutdown() error {
 		return shutdownErrors[0]
 	}
 
-	p.config.Logger.Info(shutdownCtx, "server stopped gracefully", map[string]any{})
+	p.config.Logger.Info(shutdownCtx, "Server stopped gracefully", map[string]any{})
 
 	// Note: We do NOT call Logger.Close() here because:
 	// 1. The logger may be used by other parts of the application
