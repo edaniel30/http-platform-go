@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -27,7 +28,7 @@ func TestTraceID(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.NotEmpty(t, capturedTraceID)
@@ -55,7 +56,7 @@ func TestTraceID(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		req.Header.Set(TraceIDHeader, existingTraceID)
 		router.ServeHTTP(w, req)
 

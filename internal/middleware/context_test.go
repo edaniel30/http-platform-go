@@ -24,7 +24,7 @@ func TestContextCancellation(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.True(t, handlerCalled, "handler should be called when context is not cancelled")
@@ -48,7 +48,7 @@ func TestContextCancellation(t *testing.T) {
 		cancel() // Cancel immediately
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(ctx, "GET", "/test", nil)
 		req = req.WithContext(ctx)
 		router.ServeHTTP(w, req)
 

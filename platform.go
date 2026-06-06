@@ -86,7 +86,7 @@ func New(cfg Config, opts ...Option) (*Platform, error) {
 			// Don't fail the entire platform startup, just log the error
 			tm = nil
 		} else {
-			cfg.Logger.Info(ctx, "Telemetry initialized successfully", map[string]any{})
+			cfg.Logger.Debug(ctx, "Telemetry initialized successfully", map[string]any{})
 		}
 	}
 

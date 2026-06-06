@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestTelemetry(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 200, w.Code)
