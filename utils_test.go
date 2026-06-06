@@ -1,6 +1,7 @@
 package httpplatform
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +53,7 @@ func TestQueryParamsToMap(t *testing.T) {
 			// Create a test gin context
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest("GET", tt.url, nil)
+			c.Request = httptest.NewRequestWithContext(context.Background(), "GET", tt.url, nil)
 
 			result := QueryParamsToMap(c)
 			assert.Equal(t, tt.expected, result)
@@ -117,7 +118,7 @@ func TestHeadersToMap(t *testing.T) {
 			// Create a test gin context
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest("GET", "/test", nil)
+			c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 			c.Request.Header = tt.headers
 
 			result := HeadersToMap(c)
@@ -130,7 +131,7 @@ func TestGetTraceID(t *testing.T) {
 	t.Run("returns trace ID when present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/test", nil)
+		c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 
 		// Set trace ID in context
 		expectedTraceID := "test-trace-123"
@@ -143,7 +144,7 @@ func TestGetTraceID(t *testing.T) {
 	t.Run("returns empty string when trace ID not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/test", nil)
+		c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 
 		result := GetTraceID(c)
 		assert.Equal(t, "", result)
@@ -152,7 +153,7 @@ func TestGetTraceID(t *testing.T) {
 	t.Run("returns empty string when trace ID has wrong type", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/test", nil)
+		c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 
 		// Set wrong type (int instead of string)
 		c.Set("trace_id", 12345)

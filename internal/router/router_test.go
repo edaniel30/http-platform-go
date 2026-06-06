@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestNewGinRouter(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.engine.ServeHTTP(w, req)
 
 		assert.Equal(t, 200, w.Code)
@@ -112,7 +113,7 @@ func TestGinRouterHTTPMethodsWithBasePath(t *testing.T) {
 
 	// Create a test request
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/v1/users", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/users", nil)
 
 	router.engine.ServeHTTP(w, req)
 
@@ -178,7 +179,7 @@ func TestGinRouterGroupWithBasePath(t *testing.T) {
 
 	// Test that route is under /api/users
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/users", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/users", nil)
 
 	router.engine.ServeHTTP(w, req)
 
@@ -206,7 +207,7 @@ func TestGinRouterGroupMiddleware(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/test", nil)
 
 	router.engine.ServeHTTP(w, req)
 
@@ -233,7 +234,7 @@ func TestGinRouterMiddleware(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 
 	router.engine.ServeHTTP(w, req)
 
