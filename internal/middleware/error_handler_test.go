@@ -33,7 +33,7 @@ func TestErrorHandler(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 200, w.Code)
@@ -48,7 +48,7 @@ func TestErrorHandler(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 404, w.Code)
@@ -67,7 +67,7 @@ func TestErrorHandler(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 500, w.Code)
@@ -85,7 +85,7 @@ func TestErrorHandler(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 500, w.Code)
@@ -325,7 +325,7 @@ func TestBuildLogFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/test?foo=bar", nil)
+	c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/test?foo=bar", nil)
 	c.Request.Header.Set("X-Trace-ID", "test-trace-id")
 
 	// Set trace ID in context
