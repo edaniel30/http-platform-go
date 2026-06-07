@@ -16,6 +16,10 @@ type CORSConfig struct {
 	ExposedHeaders   []string
 	AllowCredentials bool
 	MaxAge           time.Duration
+	// AllowWildcard enables pattern matching in AllowedOrigins entries.
+	// Allows patterns like "http://localhost:*", "https://*.example.com".
+	// Unlike the global "*" wildcard, this is compatible with AllowCredentials.
+	AllowWildcard bool
 }
 
 // IsWildcardOrigin checks if the origins list contains only the wildcard "*"
@@ -43,6 +47,7 @@ func CORS(cfg CORSConfig) gin.HandlerFunc {
 		config.AllowCredentials = false
 	} else {
 		config.AllowOrigins = cfg.AllowedOrigins
+		config.AllowWildcard = cfg.AllowWildcard
 	}
 
 	return cors.New(config)
