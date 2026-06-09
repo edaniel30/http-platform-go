@@ -287,6 +287,22 @@ func WithCORSCredentials(allow bool) Option {
 	}
 }
 
+// WithCORSWildcard enables pattern matching in AllowedOrigins entries.
+// Allows patterns like "http://localhost:*" or "https://*.example.com".
+// Unlike the global "*" wildcard, this is compatible with AllowCredentials.
+// Initializes CORS if not already configured.
+//
+// Example:
+//
+//	config.WithCORSWildcard(true)
+//	config.WithCORSOrigins([]string{"http://localhost:*", "https://app.example.com"})
+func WithCORSWildcard(allow bool) Option {
+	return func(c *Config) {
+		c.ensureCORS()
+		c.CORS.AllowWildcard = allow
+	}
+}
+
 // WithTelemetry enables OpenTelemetry distributed tracing.
 // Pass nil to disable telemetry.
 //
