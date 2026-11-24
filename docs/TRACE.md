@@ -32,6 +32,29 @@ Available to handlers, middleware, and downstream services
 
 If request already has `X-Trace-Id` header, that value is used instead.
 
+### With telemetry: the OpenTelemetry trace ID
+
+When telemetry is enabled, an `OTelTraceID` step runs right after the Telemetry middleware and
+replaces the trace ID with the **OpenTelemetry trace ID** of the request's span (32 hex chars):
+
+```
+TraceID middleware      → 550e8400-e29b-41d4-a716-446655440000 (UUID or X-Trace-Id)
+Telemetry middleware    → starts the span, trace ID 4bf92f3577b34da6a3ce929d0e0e4736
+OTelTraceID             → trace_id = 4bf92f3577b34da6a3ce929d0e0e4736
+```
+
+From then on `GetTraceID`, `TraceIDFromContext`, the `X-Trace-Id` response header and the
+platform's own logs (error handler, request logger) all carry the OpenTelemetry trace ID. Logs and
+traces share one ID, so a tracing backend (Tempo, Jaeger) can jump from a trace to its logs and back.
+
+Upstream services propagate the trace with the W3C `traceparent` header; `X-Trace-Id` from the
+request is only used when telemetry is off.
+
+Sampling decides which traces reach the backend, not which requests get an ID: with
+`SampleAll: false` (parent-based, 10 %), every request still carries an OpenTelemetry trace ID in
+its logs, but only the sampled ones exist as traces. For the others, the ID still groups the
+request's log lines; jumping to the trace finds nothing.
+
 ## HTTP Headers
 
 | Header | Direction | Description |
@@ -40,6 +63,24 @@ If request already has `X-Trace-Id` header, that value is used instead.
 | `X-Trace-Id` | Response | Always present - generated or propagated ID |
 
 ## Usage
+
+### Get TraceID from a context.Context
+
+The trace ID is also stored in the request's `context.Context`, so code that only has a `ctx`
+(services, repositories, loggers) can read it:
+
+```go
+traceID := httpplatform.TraceIDFromContext(ctx)
+```
+
+Outside a request (e.g. a message consumer) it returns the trace ID of the OpenTelemetry span in
+`ctx`, if any. Its signature matches loki-logger-go's `TraceIDExtractor`:
+
+```go
+logger, _ := loki.New(loki.DefaultConfig(),
+    loki.WithTraceIDExtractor(httpplatform.TraceIDFromContext),
+)
+```
 
 ### Get TraceID in Handler
 
@@ -260,6 +301,9 @@ platform, _ := httpplatform.New(cfg,
 **TraceID**: Simple correlation via headers
 **Telemetry**: Full OpenTelemetry tracing with spans and attributes
 
+With telemetry enabled, the trace ID **is** the OpenTelemetry trace ID (see "With telemetry" above),
+so logs and spans share it.
+
 ## Middleware Order
 
 TraceID runs **first** in the middleware chain:
@@ -270,11 +314,12 @@ TraceID runs **first** in the middleware chain:
 3. ContextCancel → Detects disconnects
 4. CORS          → Handles preflight
 5. Telemetry     → Creates spans
+   OTelTraceID   → trace_id = OpenTelemetry trace ID (only with telemetry)
 6. Logger        → Logs requests
 ```
 
 This order ensures:
 - All logs have trace IDs
 - Error logs include trace IDs
-- Telemetry spans are tagged with trace IDs
+- With telemetry, logs carry the same trace ID as the spans
 - HTTP requests are logged with trace IDs

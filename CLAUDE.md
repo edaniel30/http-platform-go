@@ -107,6 +107,11 @@ if cfg.CORS != nil {
 // 5. Telemetry - traces the full request processing
 if cfg.ServiceName != "" {
     engine.Use(middleware.Telemetry(cfg.ServiceName))
+
+    // 5b. OTelTraceID - trace ID becomes the span's OpenTelemetry trace ID
+    if cfg.EnableTraceID {
+        engine.Use(middleware.OTelTraceID())
+    }
 }
 
 // 6. Logger - logs AFTER all processing with final status
@@ -121,6 +126,7 @@ if cfg.EnableLogger {
 - **ContextCancellation**: Early detection saves processing
 - **CORS**: Handles preflight before business logic
 - **Telemetry**: Traces complete request lifecycle
+- **OTelTraceID after Telemetry**: the span only exists once Telemetry ran; replacing the trace ID with its OpenTelemetry ID lets logs and traces share one ID. ErrorHandler logs after `c.Next()`, so it sees the replaced value
 - **Logger last**: Captures final state (status, duration, errors)
 
 **⚠️ CRITICAL:** This order cannot be changed without breaking assumptions. Each middleware depends on previous ones.
