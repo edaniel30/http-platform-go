@@ -682,9 +682,11 @@ Runs automatically on push to `main`/`develop`:
 - **Breaking Changes**: Use new major version
 
 ### Release Process
-- Automated via `.github/workflows/auto-release.yml`
-- Triggered by pushing git tags
-- Semantic versioning (v1.0.0, v1.1.0, etc.)
+Versions are automatic (`.github/workflows/release.yml`, config in `.releaserc.json`):
+
+1. Work goes to `develop` through PRs. **Commit messages follow conventional commits** (`feat(trace): ...`, `fix(cors): ...`): the version is computed from them, never from the branch name. `scripts/conventional-commit.sh` checks them twice: locally as a `commit-msg` hook (`make setup` runs `pre-commit install`, which installs it) and in CI on every commit of the PR (job *Conventional commits*). Fix a rejected one with `git rebase -i` (reword) and push again.
+2. A `release/*` (or `hotfix/*`) PR to `main` is merged **with a merge commit, never squash**: a squash leaves one `Release: ...` commit on `main`, which is not conventional, so nothing is released.
+3. On the push to `main`, semantic-release reads the commits since the last `v*` tag: a breaking change (`!` or `BREAKING CHANGE:`) → major; `feat` → minor; `fix`, `perf`, `refactor`, `revert`, `build` → patch; `docs`, `test`, `ci`, `chore`, `style` → no release. It creates the tag (the Go module version) and the GitHub Release with the notes; it commits nothing to `main`.
 
 ### Future Considerations
 - Middleware is extensible via functional options
