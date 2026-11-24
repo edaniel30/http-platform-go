@@ -85,6 +85,11 @@ func NewGinRouter(cfg RouterConfig) *GinRouter {
 	// 5. Telemetry middleware (traces all HTTP requests)
 	if cfg.ServiceName != "" {
 		engine.Use(middleware.Telemetry(cfg.ServiceName))
+
+		// 5b. With telemetry, the trace ID becomes the OpenTelemetry one, so logs and traces share it
+		if cfg.EnableTraceID {
+			engine.Use(middleware.OTelTraceID())
+		}
 	}
 
 	// 6. Logger - log after all processing

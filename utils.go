@@ -1,6 +1,11 @@
 package httpplatform
 
-import "github.com/gin-gonic/gin"
+import (
+	"context"
+
+	"github.com/edaniel30/http-platform-go/internal/middleware"
+	"github.com/gin-gonic/gin"
+)
 
 // QueryParamsToMap extracts all query parameters from the request and returns them as a map[string]string.
 // If a parameter has multiple values, only the first value is returned.
@@ -77,4 +82,20 @@ func GetTraceID(c *gin.Context) string {
 		}
 	}
 	return ""
+}
+
+// TraceIDFromContext extracts the trace ID from a context.Context.
+// Returns empty string if no trace ID is found.
+//
+// Inside a request, it returns the same value as GetTraceID: the OpenTelemetry trace ID when
+// telemetry is enabled, otherwise the X-Trace-Id header or a generated UUID. Outside a request
+// (e.g. a message consumer), it returns the trace ID of the OpenTelemetry span in ctx, if any.
+//
+// Its signature matches loki-logger-go's TraceIDExtractor, so every log line carries the trace ID:
+//
+//	logger, _ := loki.New(loki.DefaultConfig(),
+//	    loki.WithTraceIDExtractor(httpplatform.TraceIDFromContext),
+//	)
+func TraceIDFromContext(ctx context.Context) string {
+	return middleware.TraceIDFromContext(ctx)
 }

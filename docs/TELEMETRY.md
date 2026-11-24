@@ -139,6 +139,11 @@ platform, _ := httpplatform.New(cfg,
 **TraceID**: Simple correlation via `X-Trace-Id` header
 **Telemetry**: Full distributed tracing with spans and attributes
 
+With telemetry enabled, the trace ID becomes the **OpenTelemetry trace ID** of the request's span
+(an `OTelTraceID` step right after the Telemetry middleware). `GetTraceID`, `TraceIDFromContext`,
+the `X-Trace-Id` response header and the platform's logs all carry it, so logs and traces can be
+joined in the tracing backend. See [TRACE.md](TRACE.md).
+
 ## Backend Integration Examples
 
 ### Jaeger
@@ -222,11 +227,12 @@ Telemetry runs **fifth** in the middleware chain:
 3. ContextCancel → Detects disconnects
 4. CORS          → Handles preflight
 5. Telemetry     → Creates spans ✓
+   OTelTraceID   → trace_id = OpenTelemetry trace ID
 6. Logger        → Logs requests
 ```
 
 This order ensures:
-- All spans have trace IDs
+- Logs carry the span's trace ID
 - Error spans are properly recorded
 - CORS preflight requests are handled before tracing
 - Logger captures telemetry overhead

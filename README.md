@@ -181,7 +181,7 @@ The platform automatically applies middleware in the following order:
 
 | Order | Middleware | Status | Description |
 |-------|------------|--------|-------------|
-| 1 | [**TraceID**](docs/TRACE.md) | Always enabled | Generates or extracts `X-Trace-Id` for request correlation |
+| 1 | [**TraceID**](docs/TRACE.md) | Always enabled | Generates or extracts `X-Trace-Id` for request correlation; with telemetry, it becomes the OpenTelemetry trace ID |
 | 2 | [**ErrorHandler**](docs/ERROR_HANDLER.md) | Always enabled | Catches panics and formats errors with consistent JSON responses |
 | 3 | [**ContextCancellation**](docs/CONTEXT.md) | Always enabled | Detects client disconnections (499) and timeouts (408) |
 | 4 | [**CORS**](docs/CORS.md) | Enabled by default | Handles cross-origin requests for browser-based clients |
