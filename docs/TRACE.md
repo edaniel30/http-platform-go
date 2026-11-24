@@ -50,6 +50,11 @@ traces share one ID, so a tracing backend (Tempo, Jaeger) can jump from a trace 
 Upstream services propagate the trace with the W3C `traceparent` header; `X-Trace-Id` from the
 request is only used when telemetry is off.
 
+Sampling decides which traces reach the backend, not which requests get an ID: with
+`SampleAll: false` (parent-based, 10 %), every request still carries an OpenTelemetry trace ID in
+its logs, but only the sampled ones exist as traces. For the others, the ID still groups the
+request's log lines; jumping to the trace finds nothing.
+
 ## HTTP Headers
 
 | Header | Direction | Description |
